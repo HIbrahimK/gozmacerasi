@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from './modules/auth/auth.module';
 import { ChildrenModule } from './modules/children/children.module';
+import { GamesModule } from './modules/games/games.module';
 import { SessionsModule } from './modules/sessions/sessions.module';
 import { PrismaModule } from './prisma/prisma.module';
 
@@ -20,6 +21,7 @@ import { PrismaModule } from './prisma/prisma.module';
     ]),
     AuthModule,
     ChildrenModule,
+    GamesModule,
     SessionsModule,
     PrismaModule,
   ],
