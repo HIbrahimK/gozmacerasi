@@ -7,3 +7,19 @@ export interface GameSessionSummary {
   reactionTimeMs: number;
   createdAt: string;
 }
+
+export interface WeeklyTrendPoint {
+  day: string;
+  sessions: number;
+  avgAccuracy: number;
+}
+
+export interface DashboardMetrics {
+  totalChildren: number;
+  totalSessions: number;
+  todaySessions: number;
+  activeGames: number;
+  avgAccuracy: number;
+  avgReactionTimeMs: number;
+  weeklyTrend: WeeklyTrendPoint[];
+}

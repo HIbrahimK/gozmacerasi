@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateSessionDto } from './dto/create-session.dto';
-import { GameSessionSummary } from './sessions.types';
+import { DashboardMetrics, GameSessionSummary, WeeklyTrendPoint } from './sessions.types';
 
 type PrismaGameSessionRecord = {
   id: string;
@@ -93,5 +93,108 @@ export class SessionsService {
       this.sessions.unshift(session);
       return session;
     }
+  }
+
+  async getDashboardMetrics(): Promise<DashboardMetrics> {
+    try {
+      const [childrenCount, sessionsCount, gamesCount, sessions] = await Promise.all([
+        this.prisma.child.count(),
+        this.prisma.gameSession.count(),
+        this.prisma.game.count({ where: { isPlayable: true } }),
+        this.prisma.gameSession.findMany({
+          orderBy: { startedAt: 'desc' },
+          take: 200,
+        }),
+      ]);
+
+      return this.buildMetricsFromRecords({
+        totalChildren: childrenCount,
+        totalSessions: sessionsCount,
+        activeGames: gamesCount,
+        sessionRecords: sessions.map((session: PrismaGameSessionRecord) => ({
+          createdAt: session.startedAt,
+          accuracy: session.accuracy ? Number(session.accuracy) * 100 : 0,
+          reactionTimeMs: session.reactionTime ?? 0,
+        })),
+      });
+    } catch {
+      return this.buildMetricsFromRecords({
+        totalChildren: 1,
+        totalSessions: this.sessions.length,
+        activeGames: 2,
+        sessionRecords: this.sessions.map((session) => ({
+          createdAt: new Date(session.createdAt),
+          accuracy: session.accuracy,
+          reactionTimeMs: session.reactionTimeMs,
+        })),
+      });
+    }
+  }
+
+  private buildMetricsFromRecords(input: {
+    totalChildren: number;
+    totalSessions: number;
+    activeGames: number;
+    sessionRecords: Array<{ createdAt: Date; accuracy: number; reactionTimeMs: number }>;
+  }): DashboardMetrics {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const todaySessions = input.sessionRecords.filter((session) => session.createdAt >= today).length;
+    const accuracyValues = input.sessionRecords.map((session) => session.accuracy).filter((value) => value > 0);
+    const reactionValues = input.sessionRecords
+      .map((session) => session.reactionTimeMs)
+      .filter((value) => value > 0);
+
+    const avgAccuracy = accuracyValues.length
+      ? Math.round((accuracyValues.reduce((sum, value) => sum + value, 0) / accuracyValues.length) * 100) / 100
+      : 0;
+    const avgReactionTimeMs = reactionValues.length
+      ? Math.round(reactionValues.reduce((sum, value) => sum + value, 0) / reactionValues.length)
+      : 0;
+
+    return {
+      totalChildren: input.totalChildren,
+      totalSessions: input.totalSessions,
+      todaySessions,
+      activeGames: input.activeGames,
+      avgAccuracy,
+      avgReactionTimeMs,
+      weeklyTrend: this.buildWeeklyTrend(input.sessionRecords),
+    };
+  }
+
+  private buildWeeklyTrend(
+    sessionRecords: Array<{ createdAt: Date; accuracy: number; reactionTimeMs: number }>,
+  ): WeeklyTrendPoint[] {
+    const weekDays = ['Pzt', 'Sal', 'Car', 'Per', 'Cum', 'Cmt', 'Paz'];
+    const points: WeeklyTrendPoint[] = [];
+
+    for (let offset = 6; offset >= 0; offset -= 1) {
+      const dayStart = new Date();
+      dayStart.setHours(0, 0, 0, 0);
+      dayStart.setDate(dayStart.getDate() - offset);
+
+      const dayEnd = new Date(dayStart);
+      dayEnd.setDate(dayEnd.getDate() + 1);
+
+      const recordsForDay = sessionRecords.filter(
+        (session) => session.createdAt >= dayStart && session.createdAt < dayEnd,
+      );
+
+      const avgAccuracy = recordsForDay.length
+        ? Math.round(
+            (recordsForDay.reduce((sum, session) => sum + session.accuracy, 0) / recordsForDay.length) * 100,
+          ) / 100
+        : 0;
+
+      points.push({
+        day: weekDays[dayStart.getDay() === 0 ? 6 : dayStart.getDay() - 1],
+        sessions: recordsForDay.length,
+        avgAccuracy,
+      });
+    }
+
+    return points;
   }
 }

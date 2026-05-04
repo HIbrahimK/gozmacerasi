@@ -45,9 +45,10 @@ export class ChildrenService {
 
   async create(dto: CreateChildDto): Promise<ChildProfile> {
     try {
+      const parentId = await this.ensureDefaultParentId();
       const child = await this.prisma.child.create({
         data: {
-          parentId: 'parent_demo_1',
+          parentId,
           name: dto.fullName,
           age: 6,
           diagnosis: dto.diagnosis,
@@ -74,5 +75,38 @@ export class ChildrenService {
       this.children.unshift(child);
       return child;
     }
+  }
+
+  private async ensureDefaultParentId(): Promise<string> {
+    const existingParent = await this.prisma.parent.findFirst({
+      orderBy: { createdAt: 'asc' },
+    });
+
+    if (existingParent) {
+      return existingParent.id;
+    }
+
+    const demoUser = await this.prisma.user.upsert({
+      where: { email: 'parent@gozmacerasi.dev' },
+      update: {
+        name: 'Demo Parent',
+        role: 'PARENT',
+      },
+      create: {
+        email: 'parent@gozmacerasi.dev',
+        name: 'Demo Parent',
+        role: 'PARENT',
+      },
+    });
+
+    const demoParent = await this.prisma.parent.upsert({
+      where: { userId: demoUser.id },
+      update: {},
+      create: {
+        userId: demoUser.id,
+      },
+    });
+
+    return demoParent.id;
   }
 }

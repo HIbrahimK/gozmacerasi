@@ -1,7 +1,20 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import {
+  CategoryScale,
+  Chart as ChartJS,
+  Filler,
+  Legend,
+  LineElement,
+  LinearScale,
+  PointElement,
+  Tooltip,
+} from 'chart.js';
+import { Line } from 'react-chartjs-2';
 import { apiGet } from '../../lib/api';
+
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler);
 
 type ChildProfile = {
   id: string;
@@ -11,8 +24,25 @@ type ChildProfile = {
   createdAt: string;
 };
 
+type WeeklyTrendPoint = {
+  day: string;
+  sessions: number;
+  avgAccuracy: number;
+};
+
+type DashboardMetrics = {
+  totalChildren: number;
+  totalSessions: number;
+  todaySessions: number;
+  activeGames: number;
+  avgAccuracy: number;
+  avgReactionTimeMs: number;
+  weeklyTrend: WeeklyTrendPoint[];
+};
+
 export default function DashboardPage() {
   const [children, setChildren] = useState<ChildProfile[]>([]);
+  const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [status, setStatus] = useState('Çocuk profilleri yükleniyor...');
 
   useEffect(() => {
@@ -20,10 +50,14 @@ export default function DashboardPage() {
 
     async function loadChildren() {
       try {
-        const data = await apiGet<ChildProfile[]>('/children');
+        const [childrenData, metricsData] = await Promise.all([
+          apiGet<ChildProfile[]>('/children'),
+          apiGet<DashboardMetrics>('/sessions/metrics'),
+        ]);
         if (!active) return;
-        setChildren(data);
-        setStatus(data.length ? '' : 'Henüz çocuk profili eklenmedi.');
+        setChildren(childrenData);
+        setMetrics(metricsData);
+        setStatus(childrenData.length ? '' : 'Henüz çocuk profili eklenmedi.');
       } catch {
         if (!active) return;
         setStatus('Çocuk profilleri şu anda erişilemiyor.');
@@ -36,6 +70,48 @@ export default function DashboardPage() {
       active = false;
     };
   }, []);
+
+  const lineData = {
+    labels: metrics?.weeklyTrend.map((point) => point.day) ?? [],
+    datasets: [
+      {
+        label: 'Gunluk Oturum',
+        data: metrics?.weeklyTrend.map((point) => point.sessions) ?? [],
+        borderColor: '#22D3EE',
+        backgroundColor: 'rgba(34, 211, 238, 0.2)',
+        tension: 0.35,
+        fill: true,
+      },
+      {
+        label: 'Ort. Dogruluk (%)',
+        data: metrics?.weeklyTrend.map((point) => point.avgAccuracy) ?? [],
+        borderColor: '#34D399',
+        backgroundColor: 'rgba(52, 211, 153, 0.1)',
+        tension: 0.35,
+        fill: false,
+      },
+    ],
+  };
+
+  const lineOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        labels: { color: '#CBD5E1' },
+      },
+    },
+    scales: {
+      x: {
+        ticks: { color: '#94A3B8' },
+        grid: { color: 'rgba(148, 163, 184, 0.15)' },
+      },
+      y: {
+        ticks: { color: '#94A3B8' },
+        grid: { color: 'rgba(148, 163, 184, 0.15)' },
+      },
+    },
+  };
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(34,197,94,0.14),_transparent_35%),linear-gradient(180deg,#05111a_0%,#0f172a_100%)] px-6 py-10 text-white">
@@ -54,15 +130,35 @@ export default function DashboardPage() {
           <div className="grid gap-4 md:grid-cols-3">
             <div className="rounded-3xl border border-white/10 bg-slate-950/70 p-5">
               <p className="text-sm text-slate-400">Toplam çocuk</p>
-              <p className="mt-3 text-4xl font-semibold">{children.length}</p>
+              <p className="mt-3 text-4xl font-semibold">{metrics?.totalChildren ?? children.length}</p>
             </div>
             <div className="rounded-3xl border border-white/10 bg-slate-950/70 p-5">
               <p className="text-sm text-slate-400">Bugünkü oyun</p>
-              <p className="mt-3 text-4xl font-semibold">0</p>
+              <p className="mt-3 text-4xl font-semibold">{metrics?.todaySessions ?? 0}</p>
             </div>
             <div className="rounded-3xl border border-white/10 bg-slate-950/70 p-5">
-              <p className="text-sm text-slate-400">Aktif streak</p>
-              <p className="mt-3 text-4xl font-semibold">0</p>
+              <p className="text-sm text-slate-400">Aktif oyun</p>
+              <p className="mt-3 text-4xl font-semibold">{metrics?.activeGames ?? 0}</p>
+            </div>
+          </div>
+
+          <div className="mt-8 rounded-3xl border border-white/10 bg-slate-950/70 p-5">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-xl font-semibold">Haftalik terapi trendi</h2>
+              <div className="flex gap-2 text-xs text-slate-300">
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                  Toplam Oturum: {metrics?.totalSessions ?? 0}
+                </span>
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                  Ort. Dogruluk: %{metrics?.avgAccuracy ?? 0}
+                </span>
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                  Ort. RT: {metrics?.avgReactionTimeMs ?? 0} ms
+                </span>
+              </div>
+            </div>
+            <div className="h-64">
+              <Line data={lineData} options={lineOptions} />
             </div>
           </div>
 
@@ -97,7 +193,7 @@ export default function DashboardPage() {
           <div className="mt-6 space-y-4">
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
               <p className="text-sm text-slate-400">Son oturum</p>
-              <p className="mt-2 font-medium">Henüz kayıt yok</p>
+              <p className="mt-2 font-medium">{metrics?.todaySessions ? 'Bugun aktivite var' : 'Bugun oturum yok'}</p>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
               <p className="text-sm text-slate-400">Hatırlatma</p>
@@ -105,7 +201,7 @@ export default function DashboardPage() {
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
               <p className="text-sm text-slate-400">Geliştirme notu</p>
-              <p className="mt-2 font-medium">Auth ve child profile katmanları hazır; sırada session tracking var.</p>
+              <p className="mt-2 font-medium">Migration + seed + oyun kataloğu + dashboard metrikleri bağlı durumda.</p>
             </div>
           </div>
         </aside>

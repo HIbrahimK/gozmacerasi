@@ -11,6 +11,11 @@ export class SessionsController {
     return this.sessionsService.list();
   }
 
+  @Get('metrics')
+  metrics() {
+    return this.sessionsService.getDashboardMetrics();
+  }
+
   @Post()
   create(@Body() dto: CreateSessionDto) {
     return this.sessionsService.create(dto);
