@@ -1,0 +1,49 @@
+{
+  "name": "@gozmacerasi/web",
+  "version": "0.3.0",
+  "description": "Gözmacerasi - Next.js Web Application",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint . --ext .ts,.tsx",
+    "format": "prettier --write .",
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf .next dist"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "next": "^14.2.0",
+    "next-auth": "^4.24.0",
+    "next-intl": "^3.10.0",
+    "next-themes": "^0.2.1",
+    "next-pwa": "^5.6.0",
+    "zustand": "^4.4.0",
+    "framer-motion": "^11.0.0",
+    "pixi.js": "^8.0.0",
+    "chart.js": "^4.4.0",
+    "react-chartjs-2": "^5.2.0",
+    "@radix-ui/react-dialog": "^1.1.1",
+    "@radix-ui/react-dropdown-menu": "^2.0.6",
+    "react-hook-form": "^7.0.0",
+    "@radix-ui/react-navigation-menu": "^1.1.4",
+    "tailwindcss": "^3.4.0",
+    "axios": "^1.6.0",
+    "clsx": "^2.1.0",
+    "date-fns": "^3.0.0",
+    "posthog-js": "^1.145.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.0",
+    "eslint": "^8.55.0",
+    "eslint-config-next": "^14.2.0",
+    "prettier": "^3.1.0",
+    "autoprefixer": "^10.4.16",
+    "postcss": "^8.4.32"
+  }
+}

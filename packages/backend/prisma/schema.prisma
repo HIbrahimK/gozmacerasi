@@ -1,0 +1,313 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User Management
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String?
+  name      String?
+  role      UserRole @default(PARENT)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  parent    Parent?
+  doctor    Doctor?
+  admin     Admin?
+  children  Child[]
+  auditLogs AuditLog[]
+
+  @@map("users")
+}
+
+enum UserRole {
+  PARENT
+  DOCTOR
+  ADMIN
+  CHILD
+}
+
+model Parent {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  phone         String?
+  children      Child[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("parents")
+}
+
+model Doctor {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  specialization  String?
+  licenseNumber   String?
+  verified        Boolean  @default(false)
+  children        Child[]
+  prescriptions   DoctorPrescription[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("doctors")
+}
+
+model Admin {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("admins")
+}
+
+// Child Profile & Therapy
+model Child {
+  id              String   @id @default(cuid())
+  parentId        String
+  parent          Parent   @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  doctorId        String?
+  doctor          Doctor?  @relation(fields: [doctorId], references: [id])
+  name            String
+  age             Int
+  diagnosis       String?
+  baselineVA      String?
+  stereopsisLevel String?
+  dailyLimit      Int      @default(30) // minutes
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  gameSessions    GameSession[]
+  streaks         Streak[]
+  quests          DailyQuest[]
+  storyProgress   StoryProgression[]
+  prescriptions   DoctorPrescription[]
+
+  @@map("children")
+}
+
+// Games
+model Game {
+  id              String   @id @default(cuid())
+  title           String
+  category        String   // TargetingGame, PuzzleGame, MotionGame, MemoryGame
+  description     String?
+  therapyTarget   String?
+  minAge          Int      @default(3)
+  maxAge          Int      @default(14)
+  isPlayable      Boolean  @default(false) // true for MVP 8 games
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  sessions        GameSession[]
+  recommendations DoctorPrescription[]
+
+  @@map("games")
+}
+
+model GameSession {
+  id                String   @id @default(cuid())
+  childId           String
+  child             Child    @relation(fields: [childId], references: [id], onDelete: Cascade)
+  gameId            String
+  game              Game     @relation(fields: [gameId], references: [id])
+  duration          Int      // seconds
+  difficulty        Int      @default(1)
+  finalScore        Int?
+  accuracy          Decimal?
+  reactionTime      Int?     // milliseconds
+  startedAt         DateTime @default(now())
+  endedAt           DateTime?
+  
+  // Relations
+  adaptiveSession   AdaptiveSession?
+  sessionScores     SessionScore[]
+  inputTracking     InputTracking[]
+  
+  @@map("game_sessions")
+}
+
+// Adaptive Engine
+model AdaptiveSession {
+  id                    String   @id @default(cuid())
+  gameSessionId         String   @unique
+  gameSession           GameSession @relation(fields: [gameSessionId], references: [id], onDelete: Cascade)
+  difficultyBefore      Int
+  difficultyAfter       Int
+  accuracyScore         Decimal
+  reactionTimeMs        Int
+  motorSmoothness       Decimal?
+  dominantEyeBias       Decimal?
+  adaptiveRuleApplied   String?
+  createdAt             DateTime @default(now())
+
+  @@map("adaptive_sessions")
+}
+
+// Scoring
+model SessionScore {
+  id                      String   @id @default(cuid())
+  gameSessionId           String
+  gameSession             GameSession @relation(fields: [gameSessionId], references: [id], onDelete: Cascade)
+  focusScore              Decimal
+  visionScore             Decimal
+  accuracy                Decimal
+  reactionTimeEfficiency  Decimal
+  consistency             Decimal
+  createdAt               DateTime @default(now())
+
+  @@map("session_scores")
+}
+
+model WeeklyVisionScore {
+  id                    String   @id @default(cuid())
+  childId               String
+  child                 Child    @relation(fields: [childId], references: [id], onDelete: Cascade)
+  weekStart             DateTime
+  averageVisionScore    Decimal
+  weeklyTrend           Decimal?
+  difficultyProgression Decimal?
+  balance               Decimal?
+  createdAt             DateTime @default(now())
+
+  @@unique([childId, weekStart])
+  @@map("weekly_vision_scores")
+}
+
+// Input Tracking
+model InputTracking {
+  id            String   @id @default(cuid())
+  gameSessionId String
+  gameSession   GameSession @relation(fields: [gameSessionId], references: [id], onDelete: Cascade)
+  xPos          Decimal
+  yPos          Decimal
+  eventTimestamp BigInt
+  eventType     String
+  reactionTimeMs Int?
+  accuracyDelta Decimal?
+  createdAt     DateTime @default(now())
+
+  @@map("input_tracking")
+}
+
+// Engagement: Quests, Streaks, Stories
+model DailyQuest {
+  id              String   @id @default(cuid())
+  childId         String
+  child           Child    @relation(fields: [childId], references: [id], onDelete: Cascade)
+  questId         String
+  questType       String   // morning_challenge, focus_master, speed_runner, accuracy_expert, story_unlock
+  questName       String
+  completionDate  DateTime
+  xpEarned        Int      @default(0)
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+
+  @@unique([childId, questId, completionDate])
+  @@map("daily_quests")
+}
+
+model Streak {
+  id              String   @id @default(cuid())
+  childId         String   @unique
+  child           Child    @relation(fields: [childId], references: [id], onDelete: Cascade)
+  currentStreak   Int      @default(0)
+  bestStreak      Int      @default(0)
+  lastPlayDate    DateTime?
+  bonusMultiplier Decimal  @default(1.0)
+  updatedAt       DateTime @updatedAt
+
+  @@map("streaks")
+}
+
+model StoryProgression {
+  id              String   @id @default(cuid())
+  childId         String
+  child           Child    @relation(fields: [childId], references: [id], onDelete: Cascade)
+  storyId         String
+  chapterId       Int
+  unlockedDate    DateTime?
+  completionDate  DateTime?
+  xpEarned        Int      @default(0)
+  createdAt       DateTime @default(now())
+
+  @@unique([childId, storyId, chapterId])
+  @@map("story_progression")
+}
+
+// Doctor Prescriptions
+model DoctorPrescription {
+  id              String   @id @default(cuid())
+  doctorId        String
+  doctor          Doctor   @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  childId         String
+  child           Child    @relation(fields: [childId], references: [id], onDelete: Cascade)
+  diagnosis       String
+  targetGoals     Json     // { "binocular_fusion": true, "saccad_speed": true, ... }
+  recommendedGames Json    // [{ "gameId": "...", "reason": "..." }]
+  difficultyRange String   @default("easy") // easy, medium, hard
+  dailyLimitMinutes Int    @default(30)
+  notes           String?
+  status          String   @default("active") // active, archived
+  createdDate     DateTime @default(now())
+  lastModified    DateTime @updatedAt
+
+  @@map("doctor_prescriptions")
+}
+
+// Premium Codes
+model PremiumCode {
+  id              String   @id @default(cuid())
+  code            String   @unique
+  duration        Int      // 30, 180, 365 days
+  activated       Boolean  @default(false)
+  activatedBy     String?  // childId
+  activatedAt     DateTime?
+  expiresAt       DateTime
+  createdAt       DateTime @default(now())
+
+  @@map("premium_codes")
+}
+
+// KVKK & Consent
+model KVKKConsent {
+  id              String   @id @default(cuid())
+  childId         String   @unique
+  aiRepartsConsent Boolean  @default(false)
+  dataUsageConsent Boolean  @default(false)
+  notMedicalAdvice Boolean  @default(false)
+  acceptedAt      DateTime @default(now())
+
+  @@map("kvkk_consents")
+}
+
+// Audit Logging
+model AuditLog {
+  id            String   @id @default(cuid())
+  userId        String?
+  user          User?    @relation(fields: [userId], references: [id])
+  action        String
+  resourceType  String
+  resourceId    String?
+  oldValue      Json?
+  newValue      Json?
+  timestamp     DateTime @default(now())
+  ipAddress     String?
+
+  @@map("audit_logs")
+}

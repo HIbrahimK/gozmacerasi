@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+pnpm-lock.yaml
+yarn.lock
+package-lock.json
+.pnp
+.pnp.js
+
+# Testing
+coverage/
+.nyc_output/
+
+# Production
+dist/
+build/
+.next/
+out/
+.turbo
+
+# Misc
+.env
+.env.local
+.env.*.local
+.DS_Store
+*.pem
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Database
+prisma/dev.db
+prisma/dev.db-journal
+
+# IDE
+.vscode/
+.idea/
+*.suo
+*.sln
+
+# OS
+Thumbs.db

@@ -1,0 +1,28 @@
+{
+  "name": "gozmacerasi",
+  "version": "0.3.0",
+  "description": "Gözmacerasi - Amblyopia & Strabismus Therapy Platform (CodeV3)",
+  "private": true,
+  "packageManager": "npm@11.8.0",
+  "workspaces": [
+    "packages/*",
+    "packages/shared/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "format": "turbo run format",
+    "clean": "turbo run clean && rm -rf node_modules .turbo",
+    "db:migrate": "cd packages/backend && npx prisma migrate dev",
+    "db:studio": "cd packages/backend && npx prisma studio"
+  },
+  "devDependencies": {
+    "turbo": "^2.1.0"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=11.0.0"
+  }
+}
