@@ -195,6 +195,28 @@ export default function PlayGamePage() {
               </div>
             </div>
 
+            <div className="mt-4 rounded-xl border border-amber-400/20 bg-amber-400/5 p-4">
+              <p className="text-sm font-semibold text-amber-300">Motor Analiz</p>
+              <div className="mt-3 grid grid-cols-2 gap-4 md:grid-cols-4">
+                <div>
+                  <p className="text-xs text-slate-400">Tıklama</p>
+                  <p className="text-sm font-medium text-white">{result.trackingMetrics.totalClicks}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400">Doğru</p>
+                  <p className="text-sm font-medium text-emerald-300">{result.trackingMetrics.correctClicks}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400">Motor Pürüzsüzlük</p>
+                  <p className="text-sm font-medium text-white">{(result.trackingMetrics.motorSmoothness * 100).toFixed(0)}%</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400">Göz Eğilimi</p>
+                  <p className="text-sm font-medium text-white">{result.trackingMetrics.dominantEyeBias.toFixed(2)}</p>
+                </div>
+              </div>
+            </div>
+
             <div className="mt-6 flex gap-3">
               <button
                 onClick={startGame}

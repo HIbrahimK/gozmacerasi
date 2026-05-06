@@ -77,6 +77,9 @@ async function cleanupAll() {
   await prisma.streak.deleteMany();
   await prisma.doctorPrescription.deleteMany();
   await prisma.weeklyVisionScore.deleteMany();
+  await prisma.readingSession.deleteMany();
+  await prisma.onlineBookPage.deleteMany();
+  await prisma.onlineBook.deleteMany();
   await prisma.gameSession.deleteMany();
   await prisma.premiumCode.deleteMany();
   await prisma.kVKKConsent.deleteMany();
@@ -305,6 +308,126 @@ async function seedEngagement(children) {
   console.log(`  Created ${streakCount} streaks, ${questCount} quests, ${storyCount} story progressions`);
 }
 
+async function seedBooks() {
+  console.log('Seeding 5 stereoscopic books...');
+
+  const books = [
+    {
+      title: 'Alice Harikalar Diyarında',
+      author: 'Lewis Carroll',
+      category: 'Macera',
+      description: 'Alice tavşan deliğinden düşerek harikalar diyarına ulaşır.',
+      coverColor: '#8B5CF6',
+      pages: [
+        { num: 1, text: 'Alice bir gün nehir kenarında oturmuş, can sıkıntısından ne yapacağını düşünüyordu. Yanından beyaz bir tavşan geçti!', depth: 1 },
+        { num: 2, text: 'Tavşan cebinden bir saat çıkardı ve "Geç kaldım, geç kaldım!" diye bağırdı. Alice merakla peşinden koştu.', depth: 1 },
+        { num: 3, text: 'Tavşan bir deliğe daldı. Alice de arkasından atladı. Uzun bir tünel boyunca düştü ve düştü...', depth: 2 },
+        { num: 4, text: 'Sonunda kocaman bir odaya ulaştı. Etrafında kapılar vardı. Bir tanesi çok küçüktü!', depth: 1 },
+        { num: 5, text: 'Küçük kapının arkasından güzel bir bahçe görünüyordu. Ama Alice kapıdan geçemiyordu, çok büyüktü!', depth: 2 },
+        { num: 6, text: 'Masada bir şişe gördü: "İÇ" yazıyordu. İçti ve küçülmeye başladı!', depth: 1 },
+        { num: 7, text: 'Şimdi küçücüktü ama kapı hâlâ kapalıydı. Anahtar yerdeydi ama ulaşamıyordu.', depth: 2 },
+        { num: 8, text: 'Masada bir kek buldu: "YE" yazıyordu. Yedi ve büyümeye başladı, tavanı aştı!', depth: 1 },
+        { num: 9, text: 'Sonunda doğru boyuta ulaştı ve güzel bahçeye geçti. Burada çiçekler konuşuyordu!', depth: 2 },
+        { num: 10, text: 'Bahçede Kupa Kraliçesi ile tanıştı. "Kafasını kesin!" diye bağırıyordu herkese. Alice bu maceradan çok şey öğrendi.', depth: 1 },
+      ],
+    },
+    {
+      title: 'Küçük Prens',
+      author: 'A. de Saint-Exupéry',
+      category: 'Masal',
+      description: 'Küçük Prens gezegeninden ayrılarak evreni keşfeder.',
+      coverColor: '#F59E0B',
+      pages: [
+        { num: 1, text: 'Çölde bir pilot uçağı bozuldu. Karşısında küçük bir çocuk belirdi: "Bana bir koyun çiz!" dedi.', depth: 1 },
+        { num: 2, text: 'Küçük Prens çok küçük bir gezegenden geliyordu. Gezegeninde üç yanardağ ve bir gül vardı.', depth: 2 },
+        { num: 3, text: 'Gülü çok seviyordu ama gül çok nazlıydı. Küçük Prens üzülerek gezegeninden ayrıldı.', depth: 1 },
+        { num: 4, text: 'Yolculuğunda 6 gezegen ziyaret etti. Birinde kral, birinde sanatçı, birinde içen bir adam vardı.', depth: 2 },
+        { num: 5, text: 'Dünya\'ya geldiğinde bir tilki ile tanıştı. Tilki ona "Beni evcilleştir" dedi.', depth: 1 },
+        { num: 6, text: '"Görünmeyen şeyler kalplerde saklıdır" dedi tilki. "Gülü benzersiz yapan ona harcadığın zamandır."', depth: 2 },
+        { num: 7, text: 'Küçük Prens çölde bir kuyu buldu. Su çok lezzetliydi çünkü emekle bulunmuştu.', depth: 1 },
+        { num: 8, text: 'Pilot uçağını tamir etti. Küçük Prens yılanın yardımıyla gezegenine döndü.', depth: 2 },
+        { num: 9, text: 'Pilot gökyüzüne baktığında yıldızların güldüğünü düşünürdü. Çünkü birinde Küçük Prens yaşıyordu.', depth: 1 },
+        { num: 10, text: 'Unutma: "İnsan ancak kalbiyle doğruyu görebilir. Gözler asıl gerçeği göremez."', depth: 2 },
+      ],
+    },
+    {
+      title: 'Pinokyo',
+      author: 'Carlo Collodi',
+      category: 'Macera',
+      description: 'Tahta kukla Pinokyo\'nun gerçek bir çocuk olma macerası.',
+      coverColor: '#10B981',
+      pages: [
+        { num: 1, text: 'Marangoz Gepetto usta bir tahta kukla yaptı ve ona Pinokyo adını verdi.', depth: 1 },
+        { num: 2, text: 'Bir peri kuklaya can verdi. Ama Pinokyo hâlâ tahtaydı. Yalan söyledikçe burnu uzuyordu!', depth: 2 },
+        { num: 3, text: 'Pinokyo okula gitmek yerine kukla gösterisine gitti. Kötü adam onu yakaladı!', depth: 1 },
+        { num: 4, text: 'Mavi Peri onu kurtardı. "Artık söz dinle, okula git" dedi.', depth: 2 },
+        { num: 5, text: 'Pinokyo yine yaramazlık yaptı. Tilki ve kedi onu kandırdı. Para ağacı diye altın gömdü!', depth: 1 },
+        { num: 6, text: 'Altınlar çalındı. Pinokyo hapse düştü. Çok pişman oldu.', depth: 2 },
+        { num: 7, text: 'Hapisten çıkınca babasını aradı. Gepetto balina tarafından yutulmuştu!', depth: 1 },
+        { num: 8, text: 'Pinokyo cesurca balinanın ağzına daldı ve babasını kurtardı.', depth: 2 },
+        { num: 9, text: 'Artık söz dinliyordu, okula gidiyordu, yalan söylemiyordu.', depth: 1 },
+        { num: 10, text: 'Bir sabah uyandığında gerçek bir çocuk olmuştu! Gepetto\'nun gözleri sevinçle parlıyordu.', depth: 2 },
+      ],
+    },
+    {
+      title: 'Alaaddin ve Sihirli Lamba',
+      author: 'Binbir Gece',
+      category: 'Masal',
+      description: 'Alaaddin sihirli lambayı bularak hayatını değiştirir.',
+      coverColor: '#EF4444',
+      pages: [
+        { num: 1, text: 'Alaaddin fakir bir gençti. Bir gün kötü bir büyücü onu mağaraya gönderdi.', depth: 1 },
+        { num: 2, text: 'Mağarada mücevherler ve sihirli eşyalar vardı. Aralarında eski bir lamba dikkat çekiyordu.', depth: 2 },
+        { num: 3, text: 'Alaaddin lambayı ovuşturdu. Duman çıktı ve dev bir cin belirdi! "Emret efendim!" dedi.', depth: 1 },
+        { num: 4, text: 'Cin ona saray ve zenginlik verdi. Alaaddin prensesle tanıştı ve ona âşık oldu.', depth: 2 },
+        { num: 5, text: 'Büyücü lambayı çalmak için geri döndü. Prensesi kandırdı!', depth: 1 },
+        { num: 6, text: 'Alaaddin sihirli yüzüğü sayesinde başka bir cin çağırdı ve saraya döndü.', depth: 2 },
+        { num: 7, text: 'Büyücüyü yendi ve lambayı geri aldı. Prensesi kurtardı!', depth: 1 },
+        { num: 8, text: 'Kral Alaaddin\'i takdir etti. Düğünleri büyük bir şölenle kutlandı.', depth: 2 },
+        { num: 9, text: 'Alaaddin ve prenses mutlu yaşadı. Cin her zaman hazırdı.', depth: 1 },
+        { num: 10, text: 'Unutma: Cesaret ve iyilik her zaman kazanır!', depth: 2 },
+      ],
+    },
+    {
+      title: 'Nasreddin Hoca Fıkraları',
+      author: 'Halk Hikayeleri',
+      category: 'Eğlence',
+      description: 'Nasreddin Hoca\'nın zekice ve komik hikâyeleri.',
+      coverColor: '#6366F1',
+      pages: [
+        { num: 1, text: 'Nasreddin Hoca bir gün eşeğine ters bindi. Herkes güldü. "Önemli olan eşekle aynı yöne bakmak değil, aynı yere gitmektir" dedi.', depth: 1 },
+        { num: 2, text: 'Bir komşusu kazan istemeye geldi. Hoca verdi. Ertesi gün kazanla birlikte küçük bir tencere de getirdi.', depth: 2 },
+        { num: 3, text: '"Bu ne?" diye sordu Hoca. "Kazanınız doğurdu" dedi komşu. Hoca gülümsedi.', depth: 1 },
+        { num: 4, text: 'Bir gün göle yoğurt döktü. "Yoğurt tutarsa ne iyi, tutmazsa zaten su" dedi.', depth: 2 },
+        { num: 5, text: 'Hoca\'ya sordular: "Dünya mı büyük, ay mı?" "Hangisini görmeniz kolay?" dedi.', depth: 1 },
+        { num: 6, text: 'Bir adam Hoca\'ya "Sen bilge misin?" diye sordu. "Hayır, sadece cahil olmadığımı biliyorum" dedi.', depth: 2 },
+        { num: 7, text: 'Hoca ceviz ağacına baktı. "Neden büyük ağaçta küçük ceviz, küçük ağaçta büyük kabak?" dedi.', depth: 1 },
+        { num: 8, text: 'Pazarda bir adam "BuTest1234!Test1234!Test1234!" diye bağırdı. Hoca susturdu: "Her şeyi satma, bazen susmak daha değerli."', depth: 2 },
+        { num: 9, text: 'Hoca\'ya "Neden her zaman gülüyorsun?" diye sordular. "Ağlamak bedava ama gülmenin kıymeti bilinmiyor" dedi.', depth: 1 },
+        { num: 10, text: 'Nasreddin Hoca hep derdi: "Test etmeden inanma, düşünmeden konuşma, sevmeden yaşama."', depth: 2 },
+      ],
+    },
+  ];
+
+  for (const bookData of books) {
+    const { pages, ...bookFields } = bookData;
+    const book = await prisma.onlineBook.create({ data: bookFields });
+
+    for (const page of pages) {
+      await prisma.onlineBookPage.create({
+        data: {
+          bookId: book.id,
+          pageNumber: page.num,
+          textContent: page.text,
+          depthLayer: page.depth,
+        },
+      });
+    }
+  }
+
+  console.log(`  Created ${books.length} books with pages`);
+}
+
 async function main() {
   console.log('=== GÖZMACERASI COMPREHENSIVE SEED ===\n');
 
@@ -313,6 +436,7 @@ async function main() {
   const { doctors, parents, admins } = await seedUsers();
   const children = await seedChildren(parents, doctors);
   await seedGames();
+  await seedBooks();
   await seedSessions(children);
   await seedPrescriptions(doctors, children);
   await seedEngagement(children);
@@ -323,6 +447,7 @@ async function main() {
   console.log(`Admins: ${admins.length}`);
   console.log(`Children: ${children.length}`);
   console.log(`Games: 8`);
+  console.log(`Books: 5`);
   console.log(`\nAll passwords: ${PASSWORD}`);
 
   return { doctors, parents, admins, children };

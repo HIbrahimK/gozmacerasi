@@ -96,6 +96,7 @@ model Child {
   quests             DailyQuest[]
   storyProgress      StoryProgression[]
   prescriptions      DoctorPrescription[]
+  readingSessions    ReadingSession[]
 
   @@map("children")
 }
@@ -267,6 +268,54 @@ model DoctorPrescription {
   lastModified      DateTime @updatedAt
 
   @@map("doctor_prescriptions")
+}
+
+// Online Books
+model OnlineBook {
+  id          String         @id @default(cuid())
+  title       String
+  author      String
+  category    String
+  description String?
+  coverColor  String         @default("#6366f1")
+  minAge      Int            @default(3)
+  maxAge      Int            @default(14)
+  isPublished Boolean        @default(true)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  pages            OnlineBookPage[]
+  readingSessions  ReadingSession[]
+
+  @@map("online_books")
+}
+
+model OnlineBookPage {
+  id         String      @id @default(cuid())
+  bookId     String
+  book       OnlineBook  @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  pageNumber Int
+  textContent String
+  illustration String?
+  depthLayer Int         @default(1)
+  createdAt  DateTime    @default(now())
+
+  @@unique([bookId, pageNumber])
+  @@map("online_book_pages")
+}
+
+model ReadingSession {
+  id          String      @id @default(cuid())
+  childId     String
+  child       Child       @relation(fields: [childId], references: [id], onDelete: Cascade)
+  bookId      String
+  book        OnlineBook  @relation(fields: [bookId], references: [id])
+  pagesRead   Int         @default(0)
+  duration    Int         @default(0)
+  startedAt   DateTime    @default(now())
+  endedAt     DateTime?
+
+  @@map("reading_sessions")
 }
 
 // Premium Codes

@@ -21,7 +21,8 @@ const adminNav: NavItem[] = [
 const parentNav: NavItem[] = [
   { label: 'Genel Bakış', href: '/dashboard/parent', icon: '📊' },
   { label: 'Çocuklarım', href: '/dashboard/parent/children', icon: '👶' },
-  { label: 'Oyunlar', href: '/dashboard/parent/games', icon: '🎮' },
+  { label: 'Oyunlar', href: '/games', icon: '🎮' },
+  { label: 'Kitaplar', href: '/books', icon: '📚' },
   { label: 'Raporlar', href: '/dashboard/parent/reports', icon: '📈' },
   { label: 'AI Asistan', href: '/dashboard/parent/ai', icon: '🤖' },
   { label: 'Ayarlar', href: '/dashboard/parent/settings', icon: '⚙️' },
