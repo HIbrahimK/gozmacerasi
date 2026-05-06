@@ -67,6 +67,14 @@ export default function GamesPage() {
               <p className="mt-4 text-sm text-slate-300">{game.description ?? 'Açıklama eklenmedi.'}</p>
               <p className="mt-4 text-sm text-slate-400">Hedef: {game.therapyTarget ?? 'Tanımsız'}</p>
               <p className="mt-2 text-sm text-slate-400">Yaş: {game.minAge}-{game.maxAge}</p>
+              {game.isPlayable && (
+                <a
+                  href={`/play/${game.id}`}
+                  className="mt-4 inline-block rounded-xl bg-violet-600 px-5 py-2 text-sm font-medium text-white transition hover:bg-violet-700"
+                >
+                  Oyna →
+                </a>
+              )}
             </article>
           ))}
         </div>

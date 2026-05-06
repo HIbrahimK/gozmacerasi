@@ -48,3 +48,10 @@ prisma/dev.db-journal
 
 # OS
 Thumbs.db
+
+# Kilo
+.kilo/
+
+# Credentials (NEVER commit)
+credentials*.txt
+SEED_CREDENTIALS*
