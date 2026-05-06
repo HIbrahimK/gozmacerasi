@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AnalyticsService } from '../analytics/analytics.service';
 
 export interface StoryChapter {
   chapterId: number;
@@ -123,7 +124,10 @@ const STORY_DEFINITIONS: StoryDef[] = [
 
 @Injectable()
 export class StoryService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly analyticsService: AnalyticsService,
+  ) {}
 
   getStoryDefinitions(): StoryDef[] {
     return STORY_DEFINITIONS;
@@ -203,7 +207,7 @@ export class StoryService {
 
     if (existing) return existing;
 
-    return this.prisma.storyProgression.create({
+    const progress = await this.prisma.storyProgression.create({
       data: {
         childId,
         storyId,
@@ -212,6 +216,23 @@ export class StoryService {
         xpEarned: 0,
       },
     });
+
+    // ✅ Capture story_unlocked event
+    const story = STORY_DEFINITIONS.find((s) => s.storyId === storyId);
+    const chapter = story?.chapters.find((c) => c.chapterId === chapterId);
+
+    if (story && chapter) {
+      this.analyticsService.captureEvent('story_unlocked', childId, {
+        storyId,
+        storyTitle: story.title,
+        chapterId,
+        chapterTitle: chapter.title,
+        xpEarned: chapter.xpReward,
+        unlockedAt: progress.unlockedDate?.toISOString(),
+      });
+    }
+
+    return progress;
   }
 
   async completeChapter(childId: string, storyId: string, chapterId: number) {

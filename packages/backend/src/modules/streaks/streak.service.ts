@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AnalyticsService } from '../analytics/analytics.service';
 
 export interface StreakInfo {
   currentStreak: number;
@@ -20,7 +21,10 @@ type StreakRecord = {
 
 @Injectable()
 export class StreakService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly analyticsService: AnalyticsService,
+  ) {}
 
   async getStreak(childId: string): Promise<StreakInfo> {
     let streak = await this.prisma.streak.findUnique({
@@ -113,6 +117,19 @@ export class StreakService {
         bonusMultiplier,
         lastPlayDate: today,
       },
+    });
+
+    // ✅ Capture streak_updated event
+    const rewardMilestone =
+      currentStreak === 7 || currentStreak === 14 || currentStreak === 30
+        ? currentStreak
+        : undefined;
+
+    this.analyticsService.captureEvent('streak_updated', childId, {
+      currentStreak,
+      bestStreak,
+      bonusMultiplier,
+      rewardMilestone,
     });
 
     return {

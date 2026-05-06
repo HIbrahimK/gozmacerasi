@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { AdaptiveModule } from './modules/adaptive/adaptive.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { BooksModule } from './modules/books/books.module';
 import { CalibrationModule } from './modules/calibration/calibration.module';
@@ -32,6 +33,7 @@ import { PrismaModule } from './prisma/prisma.module';
     AuthModule,
     AdminModule,
     AdaptiveModule,
+    AnalyticsModule,
     BooksModule,
     CalibrationModule,
     ParentModule,

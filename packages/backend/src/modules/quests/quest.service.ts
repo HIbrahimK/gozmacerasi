@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AnalyticsService } from '../analytics/analytics.service';
 
 export interface QuestDef {
   questId: string;
@@ -30,7 +31,10 @@ const QUEST_DEFINITIONS: QuestDef[] = [
 
 @Injectable()
 export class QuestService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly analyticsService: AnalyticsService,
+  ) {}
 
   getAvailableQuests(): QuestDef[] {
     return QUEST_DEFINITIONS;
@@ -99,6 +103,15 @@ export class QuestService {
       },
     });
 
+    // ✅ Capture quest_completed event
+    this.analyticsService.captureEvent('quest_completed', childId, {
+      questId: def.questId,
+      questType: def.questType,
+      questName: def.questName,
+      xpEarned: def.xpReward,
+      completedAt: quest.completedAt?.toISOString(),
+    });
+
     return { xpEarned: quest.xpEarned };
   }
 
@@ -111,3 +124,4 @@ export class QuestService {
     return result._sum.xpEarned ?? 0;
   }
 }
+

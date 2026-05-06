@@ -8,6 +8,22 @@ export class CreateSessionDto {
   gameId!: string;
 
   @IsOptional()
+  @IsString()
+  gameName?: string;
+
+  @IsOptional()
+  @IsString()
+  gameType?: string;
+
+  @IsOptional()
+  @IsInt()
+  difficulty?: number;
+
+  @IsOptional()
+  @IsInt()
+  contrast?: number;
+
+  @IsOptional()
   @IsInt()
   @Min(1)
   durationMinutes?: number;

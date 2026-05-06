@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AnalyticsService } from '../analytics/analytics.service';
 import { CreateSessionDto } from './dto/create-session.dto';
 import { DashboardMetrics, GameSessionSummary, WeeklyTrendPoint } from './sessions.types';
 
@@ -15,7 +16,10 @@ type PrismaGameSessionRecord = {
 
 @Injectable()
 export class SessionsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly analyticsService: AnalyticsService,
+  ) {}
 
   private readonly sessions: GameSessionSummary[] = [
     {
@@ -68,6 +72,16 @@ export class SessionsService {
           accuracy: dto.accuracy ? dto.accuracy / 100 : 0.8,
           reactionTime: dto.reactionTimeMs ?? 700,
         },
+      });
+
+      // ✅ Capture game_started event
+      this.analyticsService.captureEvent('game_started', dto.childId, {
+        gameId: dto.gameId,
+        gameName: dto.gameName || 'Unknown Game',
+        gameType: dto.gameType || 'general',
+        difficulty: dto.difficulty || 1,
+        contrast: dto.contrast || 100,
+        startedAt: session.startedAt?.toISOString(),
       });
 
       return {
