@@ -30,6 +30,7 @@ export default function LoginPage() {
       });
       setMessage(`Giriş başarılı: ${response.user.email}`);
       window.localStorage.setItem('accessToken', response.accessToken);
+      window.localStorage.setItem('token', response.accessToken);
     } catch {
       setMessage('Giriş başarısız. Bilgileri kontrol et.');
     } finally {

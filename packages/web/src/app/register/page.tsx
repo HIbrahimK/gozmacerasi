@@ -32,6 +32,7 @@ export default function RegisterPage() {
       });
       setMessage(`Kayıt başarılı: ${response.user.email}`);
       window.localStorage.setItem('accessToken', response.accessToken);
+      window.localStorage.setItem('token', response.accessToken);
     } catch {
       setMessage('Kayıt başarısız. Bilgileri kontrol et.');
     } finally {
