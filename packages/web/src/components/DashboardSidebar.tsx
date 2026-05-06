@@ -13,8 +13,8 @@ const adminNav: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard/admin', icon: '📊' },
   { label: 'Kullanıcılar', href: '/dashboard/admin/users', icon: '👥' },
   { label: 'Oyunlar', href: '/dashboard/admin/games', icon: '🎮' },
-  { label: 'Premium Kodlar', href: '/dashboard/admin/codes', icon: '🔑' },
-  { label: 'Blog', href: '/dashboard/admin/blog', icon: '📝' },
+  { label: 'Kitaplar', href: '/dashboard/admin/books', icon: '📚' },
+  { label: 'Premium Kodlar', href: '/dashboard/admin/premium-codes', icon: '🔑' },
   { label: 'Ayarlar', href: '/dashboard/admin/settings', icon: '⚙️' },
 ];
 
