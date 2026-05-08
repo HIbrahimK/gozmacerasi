@@ -1,4 +1,4 @@
-import { BaseGame, GameConfig, SessionResult } from '../core/base-game';
+import { BaseGame, GameConfig } from '../core/base-game';
 import { DifficultyConfig } from '../core/adaptive';
 
 export interface Target {
@@ -7,6 +7,8 @@ export interface Target {
   y: number;
   size: number;
   color: string;
+  /** Which eye should see this target: 'left' | 'right' | 'both' */
+  eye: 'left' | 'right' | 'both';
   spawnedAt: number;
   hit: boolean;
   lifetime: number;
@@ -53,10 +55,12 @@ export class TargetingGame extends BaseGame {
       return;
     }
 
+    // Remove expired/hit targets
     this.targets = this.targets.filter(
       (t) => !t.hit && now - t.spawnedAt < t.lifetime,
     );
 
+    // Spawn new targets
     if (
       this.targets.length < this.maxTargets &&
       now - this.spawnTimer > this.difficultyConfig.spawnIntervalMs
@@ -96,14 +100,28 @@ export class TargetingGame extends BaseGame {
     if (!canvas) return;
 
     const size = this.difficultyConfig.targetSize;
-    const margin = size;
+    const margin = size + 10;
+
+    // Alternate between left and right eye targets for binocular therapy
+    const eyeSide: 'left' | 'right' = this.nextTargetId % 2 === 0 ? 'left' : 'right';
+
+    // Get color from anaglyph renderer if available
+    let color: string;
+    if (this.anaglyph) {
+      color = eyeSide === 'left'
+        ? this.anaglyph.getLeftEyeColor()
+        : this.anaglyph.getRightEyeColor();
+    } else {
+      color = eyeSide === 'left' ? 'rgb(220, 0, 0)' : 'rgb(0, 0, 220)';
+    }
 
     this.targets.push({
       id: this.nextTargetId++,
       x: margin + Math.random() * (canvas.width - 2 * margin),
-      y: margin + Math.random() * (canvas.height - 2 * margin),
+      y: margin + 48 + Math.random() * (canvas.height - 2 * margin - 48),
       size,
-      color: this.getRandomColor(),
+      color,
+      eye: eyeSide,
       spawnedAt: Date.now(),
       hit: false,
       lifetime: this.difficultyConfig.targetLifetimeMs,
@@ -112,9 +130,16 @@ export class TargetingGame extends BaseGame {
 
   protected renderBackground(ctx: CanvasRenderingContext2D): void {
     const canvas = this.canvas!;
-    ctx.fillStyle = '#0a0a1a';
+
+    // Use calibrated background color if anaglyph is available
+    if (this.anaglyph) {
+      ctx.fillStyle = this.anaglyph.getBackgroundColor();
+    } else {
+      ctx.fillStyle = '#0a0a1a';
+    }
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+    // Grid lines
     ctx.strokeStyle = 'rgba(255,255,255,0.03)';
     ctx.lineWidth = 1;
     for (let x = 0; x < canvas.width; x += 40) {
@@ -148,16 +173,37 @@ export class TargetingGame extends BaseGame {
       ctx.save();
       ctx.globalAlpha = alpha;
 
+      // Glow effect
+      const gradient = ctx.createRadialGradient(
+        target.x, target.y, currentSize * 0.2,
+        target.x, target.y, currentSize,
+      );
+      gradient.addColorStop(0, target.color);
+      gradient.addColorStop(1, 'transparent');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(
+        target.x - currentSize, target.y - currentSize,
+        currentSize * 2, currentSize * 2,
+      );
+
+      // Main circle
       ctx.beginPath();
       ctx.arc(target.x, target.y, currentSize / 2, 0, Math.PI * 2);
       ctx.fillStyle = target.color;
       ctx.fill();
 
+      // Inner ring
       ctx.beginPath();
-      ctx.arc(target.x, target.y, currentSize / 2 + 3, 0, Math.PI * 2);
-      ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+      ctx.arc(target.x, target.y, currentSize / 4, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255,255,255,0.3)';
       ctx.lineWidth = 2;
       ctx.stroke();
+
+      // Eye indicator (small dot)
+      ctx.beginPath();
+      ctx.arc(target.x, target.y, 3, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.fill();
 
       ctx.restore();
     }
@@ -167,11 +213,12 @@ export class TargetingGame extends BaseGame {
     const canvas = this.canvas!;
     const remaining = Math.max(0, this.gameDuration - this.elapsed);
 
-    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    // HUD background
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
     ctx.fillRect(0, 0, canvas.width, 48);
 
     ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 16px system-ui';
+    ctx.font = 'bold 16px Inter, system-ui';
     ctx.textAlign = 'left';
     ctx.fillText(`Skor: ${this.score}`, 16, 30);
 
@@ -180,6 +227,31 @@ export class TargetingGame extends BaseGame {
 
     ctx.textAlign = 'right';
     ctx.fillText(`Zorluk: ${this.currentDifficulty}`, canvas.width - 16, 30);
+
+    // Legend
+    if (this.anaglyph) {
+      const legendY = canvas.height - 16;
+      ctx.globalAlpha = 0.5;
+      ctx.font = '11px Inter, system-ui';
+      ctx.textAlign = 'center';
+
+      ctx.fillStyle = this.anaglyph.getLeftEyeColor();
+      ctx.beginPath();
+      ctx.arc(canvas.width / 2 - 65, legendY - 3, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.textAlign = 'left';
+      ctx.fillText('Sol Göz', canvas.width / 2 - 55, legendY);
+
+      ctx.fillStyle = this.anaglyph.getRightEyeColor();
+      ctx.beginPath();
+      ctx.arc(canvas.width / 2 + 25, legendY - 3, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.fillText('Sağ Göz', canvas.width / 2 + 35, legendY);
+
+      ctx.globalAlpha = 1;
+    }
   }
 
   protected getRandomColor(): string {

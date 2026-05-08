@@ -1,354 +1,456 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { apiGet, apiPost } from '@/lib/api';
-
-type Preset = {
-  id: string;
-  name: string;
-  glassColor: string;
-  intensity: number;
-  brightness: number;
-  contrast: number;
-};
-
-type CalibrationState = {
-  glassType: 'clip' | 'normal' | 'themed';
-  glassColor: 'red-blue' | 'red-green';
-  intensity: number;
-  brightness: number;
-  contrast: number;
-};
-
-const DEFAULT_STATE: CalibrationState = {
-  glassType: 'normal',
-  glassColor: 'red-blue',
-  intensity: 70,
-  brightness: 100,
-  contrast: 100,
-};
+import {
+  AnaglyphCalibration,
+  ALL_PRESETS,
+  PRESET_RED_BLUE_STANDARD,
+  saveCalibration,
+  loadCalibration,
+  getLeftEyeColorWithBleed,
+  getRightEyeColorWithBleed,
+  getBackgroundColor,
+} from '@/lib/anaglyph-colors';
 
 export default function CalibrationPage() {
-  const [state, setState] = useState<CalibrationState>(DEFAULT_STATE);
-  const [presets, setPresets] = useState<Preset[]>([]);
+  const [cal, setCal] = useState<AnaglyphCalibration>(PRESET_RED_BLUE_STANDARD);
   const [saved, setSaved] = useState(false);
+  const [activeTab, setActiveTab] = useState<'test' | 'advanced'>('test');
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
+  // Load saved calibration on mount
   useEffect(() => {
-    apiGet<Preset[]>('/calibration/presets').then(setPresets).catch(() => {});
+    setCal(loadCalibration());
   }, []);
 
-  const renderTestPattern = useCallback(() => {
+  // ── Canvas Rendering ──
+  const renderScene = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
     const w = canvas.width;
     const h = canvas.height;
 
-    ctx.clearRect(0, 0, w, h);
+    // Background
+    ctx.fillStyle = getBackgroundColor(cal);
+    ctx.fillRect(0, 0, w, h);
 
-    const intensityFactor = state.intensity / 100;
-    const brightnessFactor = state.brightness / 100;
-    const contrastFactor = state.contrast / 100;
-
-    const applyFilter = (value: number) => {
-      let result = value * brightnessFactor;
-      result = ((result / 255 - 0.5) * contrastFactor + 0.5) * 255;
-      return Math.max(0, Math.min(255, Math.round(result)));
-    };
-
-    const isRedBlue = state.glassColor === 'red-blue';
-
-    for (let x = 0; x < w; x++) {
-      for (let y = 0; y < h; y++) {
-        const normalizedX = x / w;
-        const normalizedY = y / h;
-
-        const leftValue = Math.sin(normalizedX * Math.PI * 4) * 127 + 128;
-        const rightValue = Math.cos(normalizedX * Math.PI * 4 + 1) * 127 + 128;
-
-        const patternValue = (Math.sin(normalizedY * Math.PI * 3) + 1) / 2;
-
-        const leftBrightness = leftValue * patternValue;
-        const rightBrightness = rightValue * patternValue;
-
-        let r: number, g: number, b: number;
-
-        if (isRedBlue) {
-          r = applyFilter(leftBrightness * intensityFactor);
-          g = 0;
-          b = applyFilter(((rightBrightness * 0.6 + rightBrightness * 0.4) / 2) * intensityFactor);
-        } else {
-          r = applyFilter(leftBrightness * intensityFactor);
-          g = applyFilter(((rightBrightness * 0.6 + rightBrightness * 0.4) / 2) * intensityFactor);
-          b = 0;
-        }
-
-        ctx.fillStyle = `rgb(${r},${g},${b})`;
-        ctx.fillRect(x, y, 1, 1);
-      }
+    // Grid lines
+    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+    ctx.lineWidth = 1;
+    for (let x = 0; x < w; x += 40) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+    }
+    for (let y = 0; y < h; y += 40) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
     }
 
+    const leftColor = getLeftEyeColorWithBleed(cal);
+    const rightColor = getRightEyeColorWithBleed(cal);
+
+    const centerY = h * 0.45;
+    const leftX = w * 0.3;
+    const rightX = w * 0.7;
+    const radius = 55;
+
+    // ── Left eye object (red tinted — invisible through red lens) ──
+    // Outer glow
+    const leftGrad = ctx.createRadialGradient(leftX, centerY, radius * 0.3, leftX, centerY, radius * 1.5);
+    leftGrad.addColorStop(0, leftColor);
+    leftGrad.addColorStop(1, 'transparent');
+    ctx.fillStyle = leftGrad;
+    ctx.fillRect(leftX - radius * 2, centerY - radius * 2, radius * 4, radius * 4);
+
+    // Main circle
+    ctx.beginPath();
+    ctx.arc(leftX, centerY, radius, 0, Math.PI * 2);
+    ctx.fillStyle = leftColor;
+    ctx.fill();
+
+    // Inner star pattern
+    ctx.save();
+    ctx.translate(leftX, centerY);
+    ctx.fillStyle = leftColor;
+    ctx.globalAlpha = 0.6;
+    for (let i = 0; i < 6; i++) {
+      ctx.rotate(Math.PI / 3);
+      ctx.fillRect(-4, -radius * 0.7, 8, radius * 0.5);
+    }
+    ctx.restore();
+
+    // ── Right eye object (blue tinted — invisible through blue lens) ──
+    const rightGrad = ctx.createRadialGradient(rightX, centerY, radius * 0.3, rightX, centerY, radius * 1.5);
+    rightGrad.addColorStop(0, rightColor);
+    rightGrad.addColorStop(1, 'transparent');
+    ctx.fillStyle = rightGrad;
+    ctx.fillRect(rightX - radius * 2, centerY - radius * 2, radius * 4, radius * 4);
+
+    ctx.beginPath();
+    ctx.arc(rightX, centerY, radius, 0, Math.PI * 2);
+    ctx.fillStyle = rightColor;
+    ctx.fill();
+
+    ctx.save();
+    ctx.translate(rightX, centerY);
+    ctx.fillStyle = rightColor;
+    ctx.globalAlpha = 0.6;
+    for (let i = 0; i < 4; i++) {
+      ctx.rotate(Math.PI / 2);
+      ctx.fillRect(-5, -radius * 0.7, 10, radius * 0.5);
+    }
+    ctx.restore();
+
+    // ── Both-eyes crosshair (neutral white — visible to both) ──
+    const crossY = h * 0.45;
+    const crossX = w * 0.5;
     ctx.strokeStyle = 'rgba(255,255,255,0.3)';
     ctx.lineWidth = 1;
-
-    const circleX = w * 0.5;
-    const circleY = h * 0.5;
-    const circleR = 40;
-
     ctx.beginPath();
-    ctx.arc(circleX - 20, circleY, circleR, 0, Math.PI * 2);
+    ctx.moveTo(crossX - 15, crossY); ctx.lineTo(crossX + 15, crossY);
+    ctx.moveTo(crossX, crossY - 15); ctx.lineTo(crossX, crossY + 15);
     ctx.stroke();
 
-    ctx.beginPath();
-    ctx.arc(circleX + 20, circleY, circleR, 0, Math.PI * 2);
-    ctx.stroke();
+    // Small test dots scattered
+    const dotPositions = [
+      { x: w * 0.15, y: h * 0.2 }, { x: w * 0.85, y: h * 0.2 },
+      { x: w * 0.15, y: h * 0.7 }, { x: w * 0.85, y: h * 0.7 },
+      { x: w * 0.4, y: h * 0.75 }, { x: w * 0.6, y: h * 0.75 },
+    ];
+    dotPositions.forEach((pos, i) => {
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, 8, 0, Math.PI * 2);
+      ctx.fillStyle = i % 2 === 0 ? leftColor : rightColor;
+      ctx.fill();
+    });
 
-    ctx.fillStyle = 'rgba(255,255,255,0.8)';
-    ctx.font = '14px system-ui';
+    // Labels
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.font = '13px Inter, system-ui';
     ctx.textAlign = 'center';
-    ctx.fillText('Bu şekil çıkıntıda mı yoksa çukurda mı?', w / 2, h - 20);
-  }, [state]);
+    ctx.fillText('SOL GÖZ', leftX, centerY + radius + 30);
+    ctx.fillText('SAĞ GÖZ', rightX, centerY + radius + 30);
+
+    // Instructions
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.font = '12px Inter, system-ui';
+    ctx.fillText('🥽 Gözlüğü takın: Sol lens → sadece sağ nesneyi, sağ lens → sadece sol nesneyi görmeli', w / 2, h - 20);
+  }, [cal]);
 
   useEffect(() => {
-    renderTestPattern();
-  }, [renderTestPattern]);
+    renderScene();
+  }, [renderScene]);
 
-  function applyPreset(preset: Preset) {
-    setState((prev) => ({
+  // ── Handlers ──
+  function handlePreset(preset: AnaglyphCalibration) {
+    setCal({ ...preset });
+    setSaved(false);
+  }
+
+  function handleSave() {
+    saveCalibration(cal);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 3000);
+  }
+
+  function handleReset() {
+    setCal(PRESET_RED_BLUE_STANDARD);
+    setSaved(false);
+  }
+
+  function updateLeftEye(channel: 'r' | 'g' | 'b', value: number) {
+    setCal((prev) => ({
       ...prev,
-      glassColor: preset.glassColor as 'red-blue' | 'red-green',
-      intensity: preset.intensity,
-      brightness: preset.brightness,
-      contrast: preset.contrast,
+      leftEye: { ...prev.leftEye, [channel]: value },
     }));
     setSaved(false);
   }
 
-  async function handleSave() {
-    try {
-      await apiPost('/calibration/profile', {
-        childId: 'child_demo_a',
-        ...state,
-      });
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
-    } catch {
-      alert('Kalibrasyon kaydedilemedi.');
-    }
-  }
-
-  function handleReset() {
-    setState(DEFAULT_STATE);
+  function updateRightEye(channel: 'r' | 'g' | 'b', value: number) {
+    setCal((prev) => ({
+      ...prev,
+      rightEye: { ...prev.rightEye, [channel]: value },
+    }));
     setSaved(false);
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(139,92,246,0.14),_transparent_35%),linear-gradient(180deg,#05111a_0%,#0f172a_100%)] px-6 py-10 text-white">
-      <div className="mx-auto max-w-5xl">
-        <div className="mb-8">
-          <a href="/dashboard/parent" className="text-sm text-slate-400 hover:text-slate-200">
-            ← Ebeveyn Paneli
-          </a>
-          <h1 className="mt-2 text-4xl font-semibold">Gözlük Kalibrasyonu</h1>
-          <p className="mt-2 text-slate-400">
-            Gözlüğünüze uygun renk, yoğunluk ve parlaklık ayarlarını yapın.
-          </p>
+    <>
+      {/* Navbar */}
+      <nav className="fixed top-0 left-0 right-0 z-50 border-b border-white/5 bg-[#060d1b]/80 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+          <Link href="/" className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-violet-400 to-purple-500 text-lg font-bold text-white shadow-lg shadow-violet-500/20">
+              G
+            </div>
+            <span className="text-lg font-bold tracking-tight">
+              Göz<span className="gradient-text-cyan">Macerası</span>
+            </span>
+          </Link>
+          <div className="flex items-center gap-3">
+            <Link href="/dashboard" className="rounded-lg px-4 py-2 text-sm text-slate-300 transition hover:text-white">
+              Dashboard
+            </Link>
+            <Link href="/games" className="btn-primary text-sm">
+              Oyunlara Git
+            </Link>
+          </div>
+        </div>
+      </nav>
+
+      <main className="relative min-h-screen pt-24 pb-16">
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute left-1/4 top-20 h-[400px] w-[400px] rounded-full bg-violet-500/8 blur-[120px]" />
+          <div className="absolute right-1/4 top-40 h-[300px] w-[300px] rounded-full bg-purple-500/6 blur-[100px]" />
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
-          <div className="space-y-6">
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
-              <h2 className="text-lg font-semibold text-white">Stereo Test Kalıbı</h2>
-              <p className="mt-2 text-sm text-slate-400">
-                Gözlüğünüzü takın. Aşağıdaki kalıpta iki daire görüyorsanız kalibrasyon doğrudur.
-                Daireler birbirinden farklı derinlikte görünmelidir.
-              </p>
-              <div className="mt-4 flex justify-center">
-                <canvas
-                  ref={canvasRef}
-                  width={480}
-                  height={320}
-                  className="rounded-xl border border-white/10"
-                />
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
-              <h2 className="text-lg font-semibold text-white">Ön Ayarlar</h2>
-              <div className="mt-4 grid grid-cols-2 gap-3">
-                {presets.map((preset) => (
-                  <button
-                    key={preset.id}
-                    onClick={() => applyPreset(preset)}
-                    className="rounded-xl border border-white/10 bg-slate-950/70 p-4 text-left transition hover:border-violet-500/50 hover:bg-violet-500/10"
-                  >
-                    <p className="text-sm font-medium text-white">{preset.name}</p>
-                    <p className="mt-1 text-xs text-slate-400">
-                      {preset.glassColor === 'red-blue' ? 'Kırmızı-Mavi' : 'Kırmızı-Yeşil'} ·{' '}
-                      {preset.intensity}% yoğunluk
-                    </p>
-                  </button>
-                ))}
-              </div>
-            </div>
+        <div className="relative mx-auto max-w-6xl px-6">
+          {/* Header */}
+          <div className="mb-8">
+            <Link href="/dashboard" className="text-sm text-slate-400 hover:text-slate-200 transition">
+              ← Dashboard
+            </Link>
+            <h1 className="mt-2 text-3xl font-bold md:text-4xl">
+              🥽 Gözlük <span className="gradient-text-cyan">Kalibrasyonu</span>
+            </h1>
+            <p className="mt-2 text-slate-400 max-w-2xl">
+              3D anaglyph gözlüğünüzün renk kanallarını ayarlayın. Her göz sadece kendi rengindeki nesneleri görmelidir.
+            </p>
           </div>
 
-          <div className="space-y-6">
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
-              <h2 className="text-lg font-semibold text-white">Gözlük Tipi</h2>
-              <div className="mt-4 space-y-2">
-                {[
-                  { value: 'clip', label: 'Klipsli Gözlük', icon: '📎' },
-                  { value: 'normal', label: 'Normal Gözlük', icon: '👓' },
-                  { value: 'themed', label: 'Tasarım Gözlük', icon: '🎨' },
-                ].map((type) => (
-                  <label
-                    key={type.value}
-                    className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 text-sm transition ${
-                      state.glassType === type.value
-                        ? 'border-violet-500 bg-violet-500/10 text-violet-300'
-                        : 'border-white/10 bg-slate-950/70 text-slate-300 hover:border-white/20'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="glassType"
-                      value={type.value}
-                      checked={state.glassType === type.value}
-                      onChange={(e) =>
-                        setState({ ...state, glassType: e.target.value as CalibrationState['glassType'] })
-                      }
-                      className="hidden"
-                    />
-                    <div
-                      className={`flex h-5 w-5 items-center justify-center rounded-full border ${
-                        state.glassType === type.value
-                          ? 'border-violet-500 bg-violet-500'
-                          : 'border-slate-600 bg-slate-900'
+          <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
+            {/* ── Left: Canvas ── */}
+            <div className="space-y-6">
+              <div className="glass-card overflow-hidden p-6">
+                <div className="mb-4 flex items-center justify-between">
+                  <h2 className="text-lg font-semibold">Stereo Test Sahnesi</h2>
+                  <div className="flex rounded-lg border border-white/8 bg-white/[0.02] p-0.5">
+                    <button
+                      onClick={() => setActiveTab('test')}
+                      className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
+                        activeTab === 'test' ? 'bg-violet-500 text-white' : 'text-slate-400 hover:text-white'
                       }`}
                     >
-                      {state.glassType === type.value && (
-                        <div className="h-2 w-2 rounded-full bg-white" />
-                      )}
-                    </div>
-                    <span>{type.icon}</span>
-                    <span>{type.label}</span>
-                  </label>
-                ))}
+                      Test Sahnesi
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('advanced')}
+                      className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
+                        activeTab === 'advanced' ? 'bg-violet-500 text-white' : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      Gelişmiş
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex justify-center rounded-xl border border-white/6 bg-black overflow-hidden">
+                  <canvas
+                    ref={canvasRef}
+                    width={600}
+                    height={400}
+                    className="block w-full max-w-[600px]"
+                  />
+                </div>
+
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <div className="rounded-xl border border-white/6 bg-white/[0.02] p-3 text-center">
+                    <div
+                      className="mx-auto mb-2 h-4 w-12 rounded-full"
+                      style={{ backgroundColor: getLeftEyeColorWithBleed(cal) }}
+                    />
+                    <p className="text-xs text-slate-400">Sol Göz Rengi</p>
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      R:{cal.leftEye.r} G:{cal.leftEye.g} B:{cal.leftEye.b}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-white/6 bg-white/[0.02] p-3 text-center">
+                    <div
+                      className="mx-auto mb-2 h-4 w-12 rounded-full"
+                      style={{ backgroundColor: getRightEyeColorWithBleed(cal) }}
+                    />
+                    <p className="text-xs text-slate-400">Sağ Göz Rengi</p>
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      R:{cal.rightEye.r} G:{cal.rightEye.g} B:{cal.rightEye.b}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Preset buttons */}
+              <div className="glass-card p-6">
+                <h2 className="text-lg font-semibold mb-4">Gözlük Ön Ayarları</h2>
+                <div className="grid grid-cols-2 gap-3">
+                  {ALL_PRESETS.map((preset) => (
+                    <button
+                      key={preset.id}
+                      onClick={() => handlePreset(preset)}
+                      className={`group rounded-xl border p-4 text-left transition ${
+                        cal.id === preset.id
+                          ? 'border-violet-500 bg-violet-500/10'
+                          : 'border-white/6 bg-white/[0.02] hover:border-white/15 hover:bg-white/[0.04]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 mb-2">
+                        <div
+                          className="h-3 w-3 rounded-full"
+                          style={{ backgroundColor: `rgb(${preset.leftEye.r},${preset.leftEye.g},${preset.leftEye.b})` }}
+                        />
+                        <div
+                          className="h-3 w-3 rounded-full"
+                          style={{ backgroundColor: `rgb(${preset.rightEye.r},${preset.rightEye.g},${preset.rightEye.b})` }}
+                        />
+                      </div>
+                      <p className="text-sm font-medium">{preset.name}</p>
+                      <p className="mt-1 text-[11px] text-slate-500">
+                        Bleed: {Math.round(preset.bleed * 100)}%
+                      </p>
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
-              <h2 className="text-lg font-semibold text-white">Renk Kombinasyonu</h2>
-              <div className="mt-4 grid grid-cols-2 gap-3">
-                {[
-                  { value: 'red-blue', label: 'Kırmızı-Mavi', colors: 'bg-gradient-to-r from-red-500 to-blue-500' },
-                  { value: 'red-green', label: 'Kırmızı-Yeşil', colors: 'bg-gradient-to-r from-red-500 to-green-500' },
-                ].map((color) => (
-                  <button
-                    key={color.value}
-                    onClick={() => {
-                      setState({ ...state, glassColor: color.value as CalibrationState['glassColor'] });
+            {/* ── Right: Controls ── */}
+            <div className="space-y-5">
+              {/* Left Eye Controls */}
+              <div className="glass-card p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="h-3 w-3 rounded-full" style={{ backgroundColor: getLeftEyeColorWithBleed(cal) }} />
+                  <h3 className="text-sm font-semibold">Sol Göz Kanalı</h3>
+                </div>
+                {(['r', 'g', 'b'] as const).map((ch) => (
+                  <div key={`left-${ch}`} className="mb-3">
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-slate-400">{ch === 'r' ? 'Kırmızı' : ch === 'g' ? 'Yeşil' : 'Mavi'}</span>
+                      <span className="text-white font-mono">{cal.leftEye[ch]}</span>
+                    </div>
+                    <input
+                      type="range" min={0} max={255}
+                      value={cal.leftEye[ch]}
+                      onChange={(e) => updateLeftEye(ch, parseInt(e.target.value))}
+                      className="w-full accent-violet-500"
+                      style={{
+                        accentColor: ch === 'r' ? '#ef4444' : ch === 'g' ? '#22c55e' : '#3b82f6',
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              {/* Right Eye Controls */}
+              <div className="glass-card p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="h-3 w-3 rounded-full" style={{ backgroundColor: getRightEyeColorWithBleed(cal) }} />
+                  <h3 className="text-sm font-semibold">Sağ Göz Kanalı</h3>
+                </div>
+                {(['r', 'g', 'b'] as const).map((ch) => (
+                  <div key={`right-${ch}`} className="mb-3">
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-slate-400">{ch === 'r' ? 'Kırmızı' : ch === 'g' ? 'Yeşil' : 'Mavi'}</span>
+                      <span className="text-white font-mono">{cal.rightEye[ch]}</span>
+                    </div>
+                    <input
+                      type="range" min={0} max={255}
+                      value={cal.rightEye[ch]}
+                      onChange={(e) => updateRightEye(ch, parseInt(e.target.value))}
+                      className="w-full"
+                      style={{
+                        accentColor: ch === 'r' ? '#ef4444' : ch === 'g' ? '#22c55e' : '#3b82f6',
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              {/* Global controls */}
+              <div className="glass-card p-5 space-y-4">
+                <h3 className="text-sm font-semibold">Genel Ayarlar</h3>
+
+                <div>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-slate-400">Yoğunluk</span>
+                    <span className="text-white font-mono">{Math.round(cal.intensity * 100)}%</span>
+                  </div>
+                  <input
+                    type="range" min={30} max={100}
+                    value={Math.round(cal.intensity * 100)}
+                    onChange={(e) => {
+                      setCal((p) => ({ ...p, intensity: parseInt(e.target.value) / 100 }));
                       setSaved(false);
                     }}
-                    className={`rounded-xl border p-4 text-center text-sm transition ${
-                      state.glassColor === color.value
-                        ? 'border-violet-500 bg-violet-500/10 text-white'
-                        : 'border-white/10 bg-slate-950/70 text-slate-300 hover:border-white/20'
-                    }`}
-                  >
-                    <div className={`mx-auto mb-2 h-4 w-16 rounded-full ${color.colors}`} />
-                    {color.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-6 space-y-5">
-              <h2 className="text-lg font-semibold text-white">Ayalar</h2>
-
-              <div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-400">Yoğunluk</span>
-                  <span className="text-white">{state.intensity}%</span>
+                    className="w-full accent-violet-500"
+                  />
                 </div>
-                <input
-                  type="range"
-                  min={30}
-                  max={100}
-                  value={state.intensity}
-                  onChange={(e) => {
-                    setState({ ...state, intensity: parseInt(e.target.value) });
-                    setSaved(false);
-                  }}
-                  className="mt-2 w-full accent-violet-500"
-                />
-              </div>
 
-              <div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-400">Parlaklık</span>
-                  <span className="text-white">{state.brightness}%</span>
+                <div>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-slate-400">Renk Geçirgenliği (Bleed)</span>
+                    <span className="text-white font-mono">{Math.round(cal.bleed * 100)}%</span>
+                  </div>
+                  <input
+                    type="range" min={0} max={40}
+                    value={Math.round(cal.bleed * 100)}
+                    onChange={(e) => {
+                      setCal((p) => ({ ...p, bleed: parseInt(e.target.value) / 100 }));
+                      setSaved(false);
+                    }}
+                    className="w-full accent-amber-500"
+                  />
+                  <p className="mt-1 text-[10px] text-slate-500">
+                    Açık tonlu gözlükler için artırın
+                  </p>
                 </div>
-                <input
-                  type="range"
-                  min={50}
-                  max={150}
-                  value={state.brightness}
-                  onChange={(e) => {
-                    setState({ ...state, brightness: parseInt(e.target.value) });
-                    setSaved(false);
-                  }}
-                  className="mt-2 w-full accent-violet-500"
-                />
-              </div>
 
-              <div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-400">Kontrast</span>
-                  <span className="text-white">{state.contrast}%</span>
+                <div>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-slate-400">Arka Plan Karanlığı</span>
+                    <span className="text-white font-mono">{cal.backgroundLevel}</span>
+                  </div>
+                  <input
+                    type="range" min={0} max={40}
+                    value={cal.backgroundLevel}
+                    onChange={(e) => {
+                      setCal((p) => ({ ...p, backgroundLevel: parseInt(e.target.value) }));
+                      setSaved(false);
+                    }}
+                    className="w-full accent-slate-500"
+                  />
                 </div>
-                <input
-                  type="range"
-                  min={80}
-                  max={120}
-                  value={state.contrast}
-                  onChange={(e) => {
-                    setState({ ...state, contrast: parseInt(e.target.value) });
-                    setSaved(false);
-                  }}
-                  className="mt-2 w-full accent-violet-500"
-                />
               </div>
-            </div>
 
-            <div className="flex gap-3">
-              <button
-                onClick={handleSave}
-                className="flex-1 rounded-xl bg-violet-600 py-3 text-sm font-medium text-white transition hover:bg-violet-700"
-              >
-                {saved ? '✓ Kaydedildi' : 'Profili Kaydet'}
-              </button>
-              <button
-                onClick={handleReset}
-                className="rounded-xl border border-white/10 px-6 py-3 text-sm text-slate-300 transition hover:bg-white/5"
-              >
-                Sıfırla
-              </button>
-            </div>
-
-            {(state.brightness > 130 || state.brightness < 60 || state.intensity < 40) && (
-              <div className="rounded-xl border border-amber-400/20 bg-amber-400/5 p-4 text-sm text-amber-300">
-                ⚠️ Bu ayarlar göz sağlığı için uygun olmayabilir. Lütfen doktorunuza danışın.
+              {/* Save / Reset */}
+              <div className="flex gap-3">
+                <button
+                  onClick={handleSave}
+                  className={`flex-1 rounded-xl py-3 text-sm font-semibold transition ${
+                    saved
+                      ? 'bg-emerald-500 text-white'
+                      : 'bg-gradient-to-r from-violet-500 to-purple-500 text-white hover:shadow-lg hover:shadow-violet-500/20'
+                  }`}
+                >
+                  {saved ? '✓ Kaydedildi!' : 'Kalibrasyonu Kaydet'}
+                </button>
+                <button
+                  onClick={handleReset}
+                  className="rounded-xl border border-white/8 px-5 py-3 text-sm text-slate-400 transition hover:bg-white/5 hover:text-white"
+                >
+                  Sıfırla
+                </button>
               </div>
-            )}
+
+              {/* Warning */}
+              {cal.bleed > 0.3 && (
+                <div className="rounded-xl border border-amber-400/20 bg-amber-400/5 p-4 text-sm text-amber-300">
+                  ⚠️ Yüksek renk geçirgenliği, ayrım kalitesini düşürebilir.
+                </div>
+              )}
+            </div>
           </div>
         </div>
-      </div>
-    </main>
+      </main>
+    </>
   );
 }

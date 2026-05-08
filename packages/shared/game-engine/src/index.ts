@@ -3,8 +3,8 @@ export const GAME_ENGINE_VERSION = '0.3.0';
 export { BaseGame } from './core/base-game';
 export type { GameConfig, SessionResult } from './core/base-game';
 
-export { AnaglyphRenderer, DEFAULT_CALIBRATION } from './core/anaglyph';
-export type { CalibrationProfile } from './core/anaglyph';
+export { AnaglyphRenderer, DEFAULT_CALIBRATION, DEFAULT_CALIBRATION_V2 } from './core/anaglyph';
+export type { CalibrationProfile, AnaglyphCalibrationV2, EyeColor } from './core/anaglyph';
 
 export { InputTracker } from './core/input-tracker';
 export type { InputEvent, TrackingMetrics } from './core/input-tracker';
