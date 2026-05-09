@@ -6,6 +6,8 @@ import Link from 'next/link';
 import { TargetingGame, PuzzleGame, MotionGame, MemoryGame } from '@gozmacerasi/game-engine';
 import type { BaseGame, SessionResult, GameConfig, AnaglyphCalibrationV2 } from '@gozmacerasi/game-engine';
 
+import { apiGet } from '@/lib/api';
+
 const STORAGE_KEY = 'gozmacerasi_calibration';
 
 function loadCalibrationV2(): AnaglyphCalibrationV2 | undefined {
@@ -53,7 +55,26 @@ export default function PlayGamePage() {
   const gameName = GAME_NAMES[gameId] ?? gameId;
 
   useEffect(() => {
-    setHasCalibration(!!loadCalibrationV2());
+    apiGet<any>('/calibration/active')
+      .then((active) => {
+        if (active) {
+          const cal: AnaglyphCalibrationV2 = {
+            id: active.id,
+            name: active.name,
+            type: active.type,
+            leftEye: active.left,
+            rightEye: active.right,
+            bg: active.bg,
+          };
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(cal));
+          setHasCalibration(true);
+        } else {
+          setHasCalibration(!!loadCalibrationV2());
+        }
+      })
+      .catch(() => {
+        setHasCalibration(!!loadCalibrationV2());
+      });
   }, []);
 
   const startGame = useCallback(() => {

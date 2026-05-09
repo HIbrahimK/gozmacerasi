@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Anaglyph Kalibratör</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600&family=Space+Grotesk:wght@300;400;600&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --panel: #111118;
+    --border: #2a2a3a;
+    --accent: #4fffb0;
+    --accent2: #ff4f6a;
+    --text: #d0d0e0;
+    --muted: #606078;
+    --section: #16161f;
+    --w: 340px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; touch-action: manipulation; }
+
+  body {
+    font-family: 'Space Grotesk', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100dvh;
+    display: flex;
+    overflow: hidden;
+  }
+
+  /* ─── PANEL ─────────────────────────────────────────── */
+  #panel {
+    width: var(--w);
+    min-width: var(--w);
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transition: width .3s, min-width .3s, transform .3s;
+    z-index: 10;
+  }
+  #panel.closed { width: 0; min-width: 0; }
+
+  .panel-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+  .panel-title { font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); font-family: 'JetBrains Mono', monospace; }
+
+  .panel-body { flex: 1; overflow-y: auto; padding: 12px; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+
+  /* ─── SECTIONS ──────────────────────────────────────── */
+  .sec {
+    background: var(--section);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 10px;
+    overflow: hidden;
+  }
+  .sec-head {
+    padding: 10px 14px;
+    font-size: 11px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-family: 'JetBrains Mono', monospace;
+    border-bottom: 1px solid var(--border);
+  }
+  .sec-body { padding: 12px 14px; }
+
+  /* ─── PRESETS GRID ──────────────────────────────────── */
+  .preset-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-bottom: 8px; }
+  .preset-pill {
+    padding: 8px 6px;
+    border-radius: 7px;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    text-align: center;
+    font-size: 11px;
+    font-family: 'JetBrains Mono', monospace;
+    transition: .2s;
+    background: var(--bg);
+    color: var(--muted);
+    user-select: none;
+  }
+  .preset-pill.active, .preset-pill:hover { border-color: var(--accent); color: var(--text); background: #1a1a28; }
+  .preset-pill.active { color: var(--accent); }
+
+  .preset-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
+
+  /* ─── SLIDERS ───────────────────────────────────────── */
+  .chan { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .chan-lbl { font-family: 'JetBrains Mono', monospace; font-size: 11px; width: 12px; color: var(--muted); flex-shrink: 0; }
+  .chan-lbl.R { color: #ff5555; }
+  .chan-lbl.G { color: #55ff88; }
+  .chan-lbl.B { color: #5588ff; }
+  .chan input[type=range] {
+    flex: 1;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+  }
+  .chan input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 2px solid var(--panel);
+    cursor: grab;
+    transition: transform .1s;
+  }
+  .chan input[type=range]:active::-webkit-slider-thumb { transform: scale(1.2); }
+  .chan-val { font-family: 'JetBrains Mono', monospace; font-size: 11px; width: 30px; text-align: right; color: var(--text); flex-shrink: 0; }
+
+  .swatch { width: 100%; height: 36px; border-radius: 6px; border: 1px solid var(--border); margin-bottom: 4px; transition: background .05s; }
+
+  /* ─── SAVED PRESETS ─────────────────────────────────── */
+  .saved-list { display: flex; flex-direction: column; gap: 5px; }
+  .saved-item {
+    display: flex; align-items: center; gap: 6px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    font-size: 12px;
+    cursor: pointer;
+    transition: .2s;
+  }
+  .saved-item:hover { border-color: var(--accent); }
+  .saved-item .si-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .saved-item .si-dots { display: flex; gap: 3px; }
+  .saved-item .si-dot { width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(255,255,255,.1); }
+  .si-del { color: var(--accent2); font-size: 14px; cursor: pointer; padding: 0 2px; line-height: 1; }
+
+  .save-row { display: flex; gap: 6px; margin-top: 8px; }
+  .save-row input {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 12px;
+    color: var(--text);
+    font-family: 'Space Grotesk', sans-serif;
+    outline: none;
+  }
+  .save-row input:focus { border-color: var(--accent); }
+  .btn {
+    padding: 8px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--accent);
+    background: transparent;
+    color: var(--accent);
+    font-size: 12px;
+    font-family: 'Space Grotesk', sans-serif;
+    cursor: pointer;
+    transition: .2s;
+    white-space: nowrap;
+  }
+  .btn:hover { background: var(--accent); color: var(--bg); }
+  .btn.danger { border-color: var(--accent2); color: var(--accent2); }
+  .btn.danger:hover { background: var(--accent2); color: var(--bg); }
+
+  /* ─── STAGE ─────────────────────────────────────────── */
+  #stage {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* top bar */
+  #topbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+    flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+  #toggle-panel {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 6px;
+    padding: 6px 10px;
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    transition: .2s;
+  }
+  #toggle-panel:hover { border-color: var(--accent); color: var(--accent); }
+
+  .tb-label { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--muted); margin-left: auto; }
+
+  .pattern-tabs { display: flex; gap: 4px; }
+  .pat-btn {
+    padding: 5px 12px;
+    border-radius: 5px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--muted);
+    font-size: 11px;
+    cursor: pointer;
+    font-family: 'JetBrains Mono', monospace;
+    transition: .2s;
+  }
+  .pat-btn.active, .pat-btn:hover { border-color: var(--accent); color: var(--text); }
+  .pat-btn.active { color: var(--accent); background: #1a1a28; }
+
+  #fs-btn {
+    padding: 5px 10px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    background: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 14px;
+    transition: .2s;
+  }
+  #fs-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* canvas area */
+  #canvas-area {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  #canvas {
+    width: 100%;
+    height: 100%;
+    max-width: 900px;
+    max-height: 600px;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+    transition: background .05s;
+  }
+
+  /* ─── PATTERN: BLOCKS ────────────────────────────────── */
+  .pattern { width: 100%; height: 100%; display: none; }
+  .pattern.active { display: flex; }
+
+  #p-blocks {
+    align-items: center;
+    justify-content: space-around;
+    padding: 40px;
+    gap: 40px;
+  }
+  .block-wrap { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .block-lbl { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  .block { width: 160px; height: 160px; border-radius: 16px; border: 1px solid rgba(255,255,255,.06); transition: background .05s; }
+
+  /* ─── PATTERN: FULL ──────────────────────────────────── */
+  #p-full {
+    flex-direction: row;
+  }
+  .half { flex: 1; height: 100%; display: flex; align-items: center; justify-content: center; transition: background .05s; }
+  .half-lbl { font-family: 'JetBrains Mono', monospace; font-size: 13px; letter-spacing: .1em; text-transform: uppercase; mix-blend-mode: difference; color: white; opacity: .3; }
+
+  /* ─── PATTERN: TEXT ──────────────────────────────────── */
+  #p-text {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    padding: 30px;
+  }
+  .text-test-row { display: flex; gap: 40px; }
+  .text-block { text-align: center; }
+  .text-block .tb { font-size: 28px; font-weight: 600; letter-spacing: -.01em; line-height: 1.1; font-family: 'JetBrains Mono', monospace; transition: color .05s; }
+  .text-block .tb-sub { font-size: 11px; color: var(--muted); margin-top: 6px; font-family: 'JetBrains Mono', monospace; letter-spacing: .08em; }
+  .text-separator { font-size: 11px; color: var(--muted); font-family: 'JetBrains Mono', monospace; }
+
+  /* ─── PATTERN: RINGS ─────────────────────────────────── */
+  #p-rings {
+    align-items: center;
+    justify-content: center;
+  }
+  #rings-canvas { width: 100%; height: 100%; }
+
+  /* ─── PATTERN: CHECKERS ──────────────────────────────── */
+  #p-checker {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    grid-template-rows: repeat(5, 1fr);
+    overflow: hidden;
+  }
+  .checker-cell { transition: background .05s; }
+
+  /* ─── INFO BAR ───────────────────────────────────────── */
+  #info-bar {
+    padding: 8px 16px;
+    border-top: 1px solid var(--border);
+    background: var(--panel);
+    display: flex;
+    gap: 20px;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+  .info-item { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--muted); display: flex; gap: 6px; align-items: center; }
+  .info-val { color: var(--text); }
+
+  /* ─── MOBILE OVERLAY ─────────────────────────────────── */
+  #overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.6);
+    z-index: 9;
+  }
+
+  /* ─── RESPONSIVE ─────────────────────────────────────── */
+  @media (max-width: 700px) {
+    :root { --w: 300px; }
+    #panel {
+      position: fixed;
+      left: 0; top: 0; bottom: 0;
+      transform: translateX(-100%);
+      width: var(--w) !important;
+      min-width: var(--w) !important;
+    }
+    #panel.open { transform: translateX(0); }
+    #panel.closed { transform: translateX(-100%); }
+    #overlay.show { display: block; }
+    .block { width: 100px; height: 100px; }
+    #canvas-area { padding: 12px; }
+    .text-block .tb { font-size: 20px; }
+  }
+
+  /* ─── HINT OVERLAY ───────────────────────────────────── */
+  #hint {
+    position: absolute;
+    bottom: 16px;
+    right: 16px;
+    background: rgba(10,10,15,.85);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 11px;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--muted);
+    line-height: 1.6;
+    max-width: 240px;
+    pointer-events: none;
+  }
+  #hint span { color: var(--accent); }
+
+  .no-presets { color: var(--muted); font-size: 12px; font-family: 'JetBrains Mono', monospace; padding: 8px 0; }
+</style>
+</head>
+<body>
+
+<!-- ── PANEL ──────────────────────────────────────────── -->
+<div id="panel">
+  <div class="panel-header">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <circle cx="8" cy="8" r="6" stroke="#4fffb0" stroke-width="1.5"/>
+      <path d="M5 8h6M8 5v6" stroke="#4fffb0" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>
+    <span class="panel-title">Anaglyph Kalibratör</span>
+  </div>
+
+  <div class="panel-body">
+
+    <!-- Gözlük Tipi -->
+    <div class="sec">
+      <div class="sec-head">Gözlük Tipi</div>
+      <div class="sec-body">
+        <div class="preset-grid">
+          <div class="preset-pill active" data-type="rc" onclick="loadType('rc')">
+            <span class="preset-dot" style="background:red"></span><span class="preset-dot" style="background:cyan"></span><br>K/C
+          </div>
+          <div class="preset-pill" data-type="rb" onclick="loadType('rb')">
+            <span class="preset-dot" style="background:red"></span><span class="preset-dot" style="background:#3af"></span><br>K/M
+          </div>
+          <div class="preset-pill" data-type="rg" onclick="loadType('rg')">
+            <span class="preset-dot" style="background:red"></span><span class="preset-dot" style="background:#4f8"></span><br>K/Y
+          </div>
+        </div>
+        <div style="font-size:10px; color:var(--muted); font-family:'JetBrains Mono',monospace; line-height:1.6;">
+          K=Kırmızı · C=Camgöbeği · M=Mavi · Y=Yeşil
+        </div>
+      </div>
+    </div>
+
+    <!-- Arka Plan -->
+    <div class="sec">
+      <div class="sec-head">Arka Plan</div>
+      <div class="sec-body">
+        <div class="swatch" id="sw-bg"></div>
+        <div class="chan"><span class="chan-lbl R">R</span><input type="range" id="bg-r" min="0" max="255" value="255" oninput="update()"><span class="chan-val" id="v-bg-r">255</span></div>
+        <div class="chan"><span class="chan-lbl G">G</span><input type="range" id="bg-g" min="0" max="255" value="255" oninput="update()"><span class="chan-val" id="v-bg-g">255</span></div>
+        <div class="chan"><span class="chan-lbl B">B</span><input type="range" id="bg-b" min="0" max="255" value="255" oninput="update()"><span class="chan-val" id="v-bg-b">255</span></div>
+      </div>
+    </div>
+
+    <!-- Sol Göz -->
+    <div class="sec">
+      <div class="sec-head" style="color:#ff6060">Sol Göz (Kırmızı Cam)</div>
+      <div class="sec-body">
+        <div style="font-size:10px; color:var(--muted); font-family:'JetBrains Mono',monospace; margin-bottom:8px; line-height:1.5;">
+          Kırmızı cam → KAYBOLMALI<br>Diğer cam → SİYAH görünmeli
+        </div>
+        <div class="swatch" id="sw-left"></div>
+        <div class="chan"><span class="chan-lbl R">R</span><input type="range" id="l-r" min="0" max="255" value="255" oninput="update()"><span class="chan-val" id="v-l-r">255</span></div>
+        <div class="chan"><span class="chan-lbl G">G</span><input type="range" id="l-g" min="0" max="255" value="0" oninput="update()"><span class="chan-val" id="v-l-g">0</span></div>
+        <div class="chan"><span class="chan-lbl B">B</span><input type="range" id="l-b" min="0" max="255" value="0" oninput="update()"><span class="chan-val" id="v-l-b">0</span></div>
+      </div>
+    </div>
+
+    <!-- Sağ Göz -->
+    <div class="sec">
+      <div class="sec-head" id="right-head" style="color:#4fd8ff">Sağ Göz (Camgöbeği Cam)</div>
+      <div class="sec-body">
+        <div style="font-size:10px; color:var(--muted); font-family:'JetBrains Mono',monospace; margin-bottom:8px; line-height:1.5;">
+          Sağ cam → KAYBOLMALI<br>Kırmızı cam → SİYAH görünmeli
+        </div>
+        <div class="swatch" id="sw-right"></div>
+        <div class="chan"><span class="chan-lbl R">R</span><input type="range" id="r-r" min="0" max="255" value="0" oninput="update()"><span class="chan-val" id="v-r-r">0</span></div>
+        <div class="chan"><span class="chan-lbl G">G</span><input type="range" id="r-g" min="0" max="255" value="255" oninput="update()"><span class="chan-val" id="v-r-g">255</span></div>
+        <div class="chan"><span class="chan-lbl B">B</span><input type="range" id="r-b" min="0" max="255" value="255" oninput="update()"><span class="chan-val" id="v-r-b">255</span></div>
+      </div>
+    </div>
+
+    <!-- Kayıt -->
+    <div class="sec">
+      <div class="sec-head">Kayıtlı Presetler</div>
+      <div class="sec-body">
+        <div class="saved-list" id="saved-list"></div>
+        <div class="save-row">
+          <input type="text" id="preset-name" placeholder="Preset adı…" maxlength="24">
+          <button class="btn" onclick="savePreset()">Kaydet</button>
+        </div>
+        <div style="display:flex; gap:6px; margin-top:6px;">
+          <button class="btn" onclick="exportJSON()" style="flex:1; font-size:11px;">↓ Dışa Aktar</button>
+          <button class="btn" onclick="document.getElementById('import-file').click()" style="flex:1; font-size:11px;">↑ İçe Aktar</button>
+          <input type="file" id="import-file" accept=".json" style="display:none" onchange="importJSON(event)">
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /panel-body -->
+</div><!-- /panel -->
+
+<!-- ── OVERLAY (mobile) ────────────────────────────────── -->
+<div id="overlay" onclick="closePanel()"></div>
+
+<!-- ── STAGE ───────────────────────────────────────────── -->
+<div id="stage">
+  <div id="topbar">
+    <button id="toggle-panel" onclick="togglePanel()" title="Paneli aç/kapat">☰</button>
+
+    <div class="pattern-tabs">
+      <button class="pat-btn active" data-p="blocks" onclick="setPattern('blocks')">Bloklar</button>
+      <button class="pat-btn" data-p="full" onclick="setPattern('full')">Tam Alan</button>
+      <button class="pat-btn" data-p="text" onclick="setPattern('text')">Metin</button>
+      <button class="pat-btn" data-p="rings" onclick="setPattern('rings')">Halkalar</button>
+      <button class="pat-btn" data-p="checker" onclick="setPattern('checker')">Dama</button>
+<button class="pat-btn" data-p="race" onclick="setPattern('race')">Yarış</button>
+    </div>
+
+    <button id="fs-btn" onclick="toggleFS()" title="Tam ekran">⛶</button>
+  </div>
+
+  <div id="canvas-area">
+    <div id="canvas">
+
+      <!-- Pattern: Blocks -->
+      <div class="pattern active" id="p-blocks">
+        <div class="block-wrap">
+          <div class="block-lbl">Sol Göz</div>
+          <div class="block" id="b-left"></div>
+          <div style="font-size:10px; color:var(--muted); font-family:'JetBrains Mono',monospace; text-align:center;">Kırmızı cam<br>kaybolmalı</div>
+        </div>
+        <div class="block-wrap">
+          <div class="block-lbl">Sağ Göz</div>
+          <div class="block" id="b-right"></div>
+          <div style="font-size:10px; color:var(--muted); font-family:'JetBrains Mono',monospace; text-align:center;" id="hint-right">Camgöbeği cam<br>kaybolmalı</div>
+        </div>
+      </div>
+
+      <!-- Pattern: Full -->
+      <div class="pattern" id="p-full">
+        <div class="half" id="h-left"><div class="half-lbl">SOL</div></div>
+        <div class="half" id="h-right"><div class="half-lbl">SAĞ</div></div>
+      </div>
+
+      <!-- Pattern: Text -->
+      <div class="pattern" id="p-text">
+        <div class="text-test-row">
+          <div class="text-block">
+            <div class="tb" id="t-left">KALIBRASYON</div>
+            <div class="tb-sub">SOL GÖZ · KIRMIZI CAM</div>
+          </div>
+          <div class="text-separator">|</div>
+          <div class="text-block">
+            <div class="tb" id="t-right">KALIBRASYON</div>
+            <div class="tb-sub" id="ts-right">SAĞ GÖZ · CAMGÖBEĞİ</div>
+          </div>
+        </div>
+        <div style="font-size:11px; color:var(--muted); font-family:'JetBrains Mono',monospace; text-align:center; margin-top:10px;">
+          Her metin yalnızca kendi camından okunabilmeli
+        </div>
+      </div>
+
+      <!-- Pattern: Rings (canvas) -->
+      <div class="pattern" id="p-rings" style="display:none; flex-direction:column;">
+        <canvas id="rings-canvas" style="width:100%;height:100%;"></canvas>
+      </div>
+
+      <!-- Pattern: Checker -->
+      <div class="pattern" id="p-checker" style="display:none;"></div>
+
+      <!-- Hint -->
+      <div id="hint">
+        <span>Sol cam (kırmızı)</span> → sol bloğu filtreler<br>
+        <span>Sağ cam (diğer)</span> → sağ bloğu filtreler<br>
+        Renkleri tam eşleşene kadar ayarlayın
+      </div>
+<div class="pattern" id="p-race" style="display:none; position:relative; flex-direction:column; background:#000;">
+  <div id="game-ui" style="position:absolute; top:10px; left:10px; z-index:5; font-family:'JetBrains Mono'; font-size:14px; color:#fff; text-shadow:1px 1px 2px #000;">
+    SKOR: <span id="score-val">0</span>
+  </div>
+  <canvas id="race-canvas" style="width:100%; height:100%; cursor:none;"></canvas>
+  <div id="game-over" style="display:none; position:absolute; inset:0; background:rgba(0,0,0,0.8); flex-direction:column; align-items:center; justify-content:center; z-index:10;">
+    <h2 style="color:var(--accent2)">OYUN BİTTİ</h2>
+    <button class="btn" onclick="initGame()" style="margin-top:15px;">YENİDEN BAŞLAT</button>
+  </div>
+</div>
+    </div>
+  </div>
+
+  <div id="info-bar">
+    <div class="info-item">ARKAPLAN <span class="info-val" id="i-bg">rgb(255,255,255)</span></div>
+    <div class="info-item">SOL GÖZ <span class="info-val" id="i-left">rgb(255,0,0)</span></div>
+    <div class="info-item">SAĞ GÖZ <span class="info-val" id="i-right">rgb(0,255,255)</span></div>
+    <div class="info-item" id="i-type-wrap">TİP <span class="info-val" id="i-type">Red/Cyan</span></div>
+  </div>
+</div>
+
+<script>
+const TYPES = {
+  rc: { label: 'Red/Cyan',   rightHead: 'Sağ Göz (Camgöbeği Cam)', hintRight: 'Camgöbeği cam<br>kaybolmalı', tsRight: 'SAĞ GÖZ · CAMGÖBEĞİ', bg:[255,255,255], l:[255,0,0], r:[0,255,255] },
+  rb: { label: 'Red/Blue',   rightHead: 'Sağ Göz (Mavi Cam)',       hintRight: 'Mavi cam<br>kaybolmalı',      tsRight: 'SAĞ GÖZ · MAVİ',       bg:[255,255,255], l:[255,0,0], r:[0,0,255]   },
+  rg: { label: 'Red/Green',  rightHead: 'Sağ Göz (Yeşil Cam)',      hintRight: 'Yeşil cam<br>kaybolmalı',     tsRight: 'SAĞ GÖZ · YEŞİL',      bg:[255,255,255], l:[255,0,0], r:[0,255,0]   },
+};
+
+let currentType = 'rc';
+let currentPattern = 'blocks';
+let savedPresets = [];
+
+const $ = id => document.getElementById(id);
+const rgb = (r,g,b) => `rgb(${r},${g},${b})`;
+const hex = (r,g,b) => '#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('');
+
+function getVals() {
+  return {
+    bg:  [+$('bg-r').value, +$('bg-g').value, +$('bg-b').value],
+    l:   [+$('l-r').value,  +$('l-g').value,  +$('l-b').value],
+    r:   [+$('r-r').value,  +$('r-g').value,  +$('r-b').value],
+  };
+}
+
+function update() {
+  const {bg, l, r} = getVals();
+
+  // update labels
+  ['bg','l','r'].forEach(k => {
+    const vals = k==='bg'?bg:k==='l'?l:r;
+    const pre = k==='bg'?'bg':k;
+    ['r','g','b'].forEach((c,i)=>{
+      $(`v-${pre}-${c}`).textContent = vals[i];
+    });
+  });
+
+  const bgC = rgb(...bg), lC = rgb(...l), rC = rgb(...r);
+
+  // swatches
+  $('sw-bg').style.background   = bgC;
+  $('sw-left').style.background = lC;
+  $('sw-right').style.background= rC;
+
+  // canvas bg
+  $('canvas').style.background = bgC;
+
+  // blocks
+  $('b-left').style.background  = lC;
+  $('b-right').style.background = rC;
+
+  // full halves
+  $('h-left').style.background  = lC;
+  $('h-right').style.background = rC;
+
+  // text
+  $('t-left').style.color  = lC;
+  $('t-right').style.color = rC;
+
+  // info bar
+  $('i-bg').textContent    = bgC;
+  $('i-left').textContent  = lC;
+  $('i-right').textContent = rC;
+
+  // rings
+  if (currentPattern === 'rings') drawRings(l, r, bg);
+
+  // checkers
+  if (currentPattern === 'checker') drawChecker(l, r, bg);
+}
+
+function loadType(type) {
+  currentType = type;
+  const t = TYPES[type];
+
+  document.querySelectorAll('.preset-pill').forEach(p => p.classList.toggle('active', p.dataset.type === type));
+
+  $('right-head').textContent = t.rightHead;
+  $('hint-right').innerHTML   = t.hintRight;
+  $('ts-right').textContent   = t.tsRight;
+  $('i-type').textContent     = t.label;
+
+  // set sliders
+  const ids = ['bg-r','bg-g','bg-b','l-r','l-g','l-b','r-r','r-g','r-b'];
+  const vals = [...t.bg, ...t.l, ...t.r];
+  ids.forEach((id,i) => $(id).value = vals[i]);
+
+  update();
+}
+
+// ─── PATTERNS ────────────────────────────────────────────
+function setPattern(p) {
+  currentPattern = p;
+  document.querySelectorAll('.pat-btn').forEach(b => b.classList.toggle('active', b.dataset.p === p));
+  document.querySelectorAll('.pattern').forEach(el => {
+    const match = el.id === 'p-'+p;
+    el.style.display = match ? (p==='rings'||p==='checker' ? 'grid' : 'flex') : 'none';
+    el.classList.toggle('active', match);
+  });
+  if (p === 'rings')   { setTimeout(() => drawRings(...[getVals().l, getVals().r, getVals().bg]), 50); }
+  if (p === 'checker') { buildChecker(); }
+  update();
+}
+
+function drawRings(l, r, bg) {
+  const cv = $('rings-canvas');
+  const par = cv.parentElement;
+  cv.width  = par.clientWidth  || 600;
+  cv.height = par.clientHeight || 400;
+  const ctx = cv.getContext('2d');
+  const cx = cv.width/2, cy = cv.height/2;
+  const maxR = Math.min(cx, cy) * .9;
+  ctx.fillStyle = `rgb(${bg[0]},${bg[1]},${bg[2]})`;
+  ctx.fillRect(0,0,cv.width,cv.height);
+  const steps = 10;
+  for (let i = steps; i >= 1; i--) {
+    const frac = i/steps;
+    const c = i%2===0 ? l : r;
+    ctx.beginPath();
+    ctx.arc(cx, cy, maxR*frac, 0, Math.PI*2);
+    ctx.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`;
+    ctx.fill();
+  }
+  // center dot bg
+  ctx.beginPath();
+  ctx.arc(cx, cy, 8, 0, Math.PI*2);
+  ctx.fillStyle = `rgb(${bg[0]},${bg[1]},${bg[2]})`;
+  ctx.fill();
+}
+
+function buildChecker() {
+  const el = $('p-checker');
+  el.innerHTML = '';
+  for (let i = 0; i < 40; i++) {
+    const c = document.createElement('div');
+    c.className = 'checker-cell';
+    c.dataset.idx = i;
+    el.appendChild(c);
+  }
+  drawChecker(getVals().l, getVals().r, getVals().bg);
+}
+
+function drawChecker(l, r, bg) {
+  const cells = document.querySelectorAll('.checker-cell');
+  cells.forEach((c, i) => {
+    const row = Math.floor(i/8), col = i%8;
+    const even = (row+col)%2===0;
+    const color = even ? l : r;
+    c.style.background = `rgb(${color[0]},${color[1]},${color[2]})`;
+  });
+  $('canvas').style.background = `rgb(${bg[0]},${bg[1]},${bg[2]})`;
+}
+
+// ─── PANEL TOGGLE ────────────────────────────────────────
+function togglePanel() {
+  const panel = $('panel');
+  const isMobile = window.innerWidth <= 700;
+  if (isMobile) {
+    const open = panel.classList.toggle('open');
+    $('overlay').classList.toggle('show', open);
+    panel.classList.toggle('closed', !open);
+  } else {
+    panel.classList.toggle('closed');
+  }
+}
+function closePanel() {
+  $('panel').classList.remove('open');
+  $('overlay').classList.remove('show');
+}
+
+// ─── FULLSCREEN ───────────────────────────────────────────
+function toggleFS() {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen?.();
+  } else {
+    document.exitFullscreen?.();
+  }
+}
+
+// ─── PRESETS ─────────────────────────────────────────────
+const STORAGE_KEY = 'anaglyphPresets_v2';
+
+function loadPresets() {
+  try { savedPresets = JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; } catch { savedPresets = []; }
+  renderPresets();
+}
+
+function savePreset() {
+  const name = $('preset-name').value.trim();
+  if (!name) { $('preset-name').focus(); return; }
+  const {bg, l, r} = getVals();
+  savedPresets.push({ name, type: currentType, bg, l, r, ts: Date.now() });
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(savedPresets));
+  $('preset-name').value = '';
+  renderPresets();
+}
+
+function applyPreset(idx) {
+  const p = savedPresets[idx];
+  if (!p) return;
+  loadType(p.type);
+  $('bg-r').value=p.bg[0]; $('bg-g').value=p.bg[1]; $('bg-b').value=p.bg[2];
+  $('l-r').value=p.l[0];   $('l-g').value=p.l[1];   $('l-b').value=p.l[2];
+  $('r-r').value=p.r[0];   $('r-g').value=p.r[1];   $('r-b').value=p.r[2];
+  update();
+}
+
+function deletePreset(idx) {
+  savedPresets.splice(idx, 1);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(savedPresets));
+  renderPresets();
+}
+
+function renderPresets() {
+  const list = $('saved-list');
+  if (!savedPresets.length) {
+    list.innerHTML = '<div class="no-presets">Henüz preset yok.</div>';
+    return;
+  }
+  list.innerHTML = savedPresets.map((p,i) => `
+    <div class="saved-item" onclick="applyPreset(${i})">
+      <div class="si-dots">
+        <div class="si-dot" style="background:${hex(...p.l)}"></div>
+        <div class="si-dot" style="background:${hex(...p.r)}"></div>
+      </div>
+      <span class="si-name">${escHtml(p.name)}</span>
+      <span style="font-size:10px; color:var(--muted); font-family:'JetBrains Mono',monospace; flex-shrink:0;">${TYPES[p.type]?.label||p.type}</span>
+      <span class="si-del" onclick="event.stopPropagation();deletePreset(${i})" title="Sil">×</span>
+    </div>
+  `).join('');
+}
+
+function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function exportJSON() {
+  const blob = new Blob([JSON.stringify({version:2, presets: savedPresets}, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'anaglyph-presets.json';
+  a.click();
+}
+
+function importJSON(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      const incoming = data.presets || data;
+      if (Array.isArray(incoming)) {
+        savedPresets = [...savedPresets, ...incoming];
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(savedPresets));
+        renderPresets();
+      }
+    } catch { alert('Geçersiz dosya.'); }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+}
+
+// ─── INIT ─────────────────────────────────────────────────
+loadPresets();
+loadType('rc');
+
+// handle rings resize
+window.addEventListener('resize', () => {
+  if (currentPattern === 'rings') drawRings(getVals().l, getVals().r, getVals().bg);
+});
+// ─── OYUN MOTORU ──────────────────────────────────────────
+let gameActive = false;
+let score = 0;
+let player = { x: 0, y: 0, w: 30, h: 50 };
+let obstacles = [];
+let animationId;
+
+function initGame() {
+    const cv = $('race-canvas');
+    const container = cv.parentElement;
+    cv.width = container.clientWidth;
+    cv.height = container.clientHeight;
+    
+    player.x = cv.width / 2;
+    player.y = cv.height - 80;
+    obstacles = [];
+    score = 0;
+    gameActive = true;
+    $('game-over').style.display = 'none';
+    $('score-val').textContent = "0";
+    
+    // Mouse veya dokunma kontrolü
+    cv.onmousemove = (e) => {
+        const rect = cv.getBoundingClientRect();
+        player.x = e.clientX - rect.left - player.w/2;
+    };
+    
+    gameLoop();
+}
+
+function gameLoop() {
+    if (!gameActive) return;
+    
+    const cv = $('race-canvas');
+    const ctx = cv.getContext('2d');
+    const {bg, l, r} = getVals(); // Kalibrasyon değerlerini al
+
+    // Arka planı çiz
+    ctx.fillStyle = rgb(...bg);
+    ctx.fillRect(0, 0, cv.width, cv.height);
+
+    // Oyuncu (Her iki gözle de görülebilmesi için Gri/Nötr)
+    ctx.fillStyle = "#333";
+    ctx.fillRect(player.x, player.y, player.w, player.h);
+    ctx.strokeStyle = "#fff";
+    ctx.strokeRect(player.x, player.y, player.w, player.h);
+
+    // Engel oluşturma
+    if (Math.random() < 0.05) {
+        obstacles.push({
+            x: Math.random() * (cv.width - 30),
+            y: -50,
+            w: 30,
+            h: 30,
+            type: Math.random() > 0.5 ? 'left' : 'right', // Hangi göz görecek?
+            speed: 3 + (score / 100)
+        });
+    }
+
+    // Engelleri güncelle ve çiz
+    for (let i = obstacles.length - 1; i >= 0; i--) {
+        let o = obstacles[i];
+        o.y += o.speed;
+
+        // Renk Seçimi: 
+        // type 'left' ise Sol Nesne kalibrasyon rengini kullanır (Kırmızı camda kaybolur)
+        // type 'right' ise Sağ Nesne kalibrasyon rengini kullanır (Sağ camda kaybolur)
+        ctx.fillStyle = o.type === 'left' ? rgb(...l) : rgb(...r);
+        ctx.fillRect(o.x, o.y, o.w, o.h);
+
+        // Çarpışma kontrolü
+        if (o.x < player.x + player.w && o.x + o.w > player.x &&
+            o.y < player.y + player.h && o.y + o.h > player.y) {
+            gameOver();
+        }
+
+        // Ekran dışına çıkanları sil
+        if (o.y > cv.height) {
+            obstacles.splice(i, 1);
+            score++;
+            $('score-val').textContent = score;
+        }
+    }
+
+    animationId = requestAnimationFrame(gameLoop);
+}
+
+function gameOver() {
+    gameActive = false;
+    cancelAnimationFrame(animationId);
+    $('game-over').style.display = 'flex';
+}
+
+// setPattern fonksiyonunu güncelle (oyunu başlatmak için)
+const originalSetPattern = setPattern;
+setPattern = function(p) {
+    originalSetPattern(p);
+    if (p === 'race') {
+        setTimeout(initGame, 100);
+    } else {
+        gameActive = false;
+        cancelAnimationFrame(animationId);
+    }
+};
+</script>
+</body>
+</html>

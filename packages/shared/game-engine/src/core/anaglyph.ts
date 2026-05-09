@@ -16,11 +16,10 @@ export interface EyeColor {
 export interface AnaglyphCalibrationV2 {
   id: string;
   name: string;
-  leftEye: EyeColor;
-  rightEye: EyeColor;
-  bleed: number;
-  intensity: number;
-  backgroundLevel: number;
+  type?: string; // e.g. 'rc', 'rb', 'rg'
+  leftEye: [number, number, number];
+  rightEye: [number, number, number];
+  bg: [number, number, number];
 }
 
 export const DEFAULT_CALIBRATION: CalibrationProfile = {
@@ -35,23 +34,18 @@ export const DEFAULT_CALIBRATION: CalibrationProfile = {
 export const DEFAULT_CALIBRATION_V2: AnaglyphCalibrationV2 = {
   id: 'red-blue-standard',
   name: 'Kırmızı-Mavi (Standart)',
-  leftEye: { r: 220, g: 0, b: 0 },
-  rightEye: { r: 0, g: 0, b: 220 },
-  bleed: 0.05,
-  intensity: 1.0,
-  backgroundLevel: 10,
+  type: 'rb',
+  leftEye: [255, 0, 0],
+  rightEye: [0, 0, 255],
+  bg: [255, 255, 255],
 };
 
 /**
  * Apply bleed effect to an eye color
+ * @deprecated Not used with precise RGB calibration
  */
-function applyBleed(color: EyeColor, bleed: number): EyeColor {
-  const avg = (color.r + color.g + color.b) / 3;
-  return {
-    r: Math.round(color.r + avg * bleed * (color.r === 0 ? 1 : 0)),
-    g: Math.round(color.g + avg * bleed * (color.g === 0 ? 1 : 0)),
-    b: Math.round(color.b + avg * bleed * (color.b === 0 ? 1 : 0)),
-  };
+function applyBleed(color: [number, number, number], bleed: number): [number, number, number] {
+  return color;
 }
 
 export class AnaglyphRenderer {
@@ -87,36 +81,28 @@ export class AnaglyphRenderer {
 
   /**
    * Get CSS color string for objects visible ONLY to the LEFT eye.
-   * Through the red lens, red objects disappear → left eye object is red-tinted.
    */
   getLeftEyeColor(alpha: number = 1): string {
-    const c = applyBleed(this.profileV2.leftEye, this.profileV2.bleed);
-    const i = this.profileV2.intensity;
-    if (alpha >= 1) {
-      return `rgb(${Math.round(c.r * i)}, ${Math.round(c.g * i)}, ${Math.round(c.b * i)})`;
-    }
-    return `rgba(${Math.round(c.r * i)}, ${Math.round(c.g * i)}, ${Math.round(c.b * i)}, ${alpha})`;
+    const [r, g, b] = this.profileV2.leftEye;
+    if (alpha >= 1) return `rgb(${r}, ${g}, ${b})`;
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
   }
 
   /**
    * Get CSS color string for objects visible ONLY to the RIGHT eye.
-   * Through the blue lens, blue objects disappear → right eye object is blue-tinted.
    */
   getRightEyeColor(alpha: number = 1): string {
-    const c = applyBleed(this.profileV2.rightEye, this.profileV2.bleed);
-    const i = this.profileV2.intensity;
-    if (alpha >= 1) {
-      return `rgb(${Math.round(c.r * i)}, ${Math.round(c.g * i)}, ${Math.round(c.b * i)})`;
-    }
-    return `rgba(${Math.round(c.r * i)}, ${Math.round(c.g * i)}, ${Math.round(c.b * i)}, ${alpha})`;
+    const [r, g, b] = this.profileV2.rightEye;
+    if (alpha >= 1) return `rgb(${r}, ${g}, ${b})`;
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
   }
 
   /**
    * Get background color from calibration profile
    */
   getBackgroundColor(): string {
-    const v = this.profileV2.backgroundLevel;
-    return `rgb(${v}, ${v}, ${v})`;
+    const [r, g, b] = this.profileV2.bg;
+    return `rgb(${r}, ${g}, ${b})`;
   }
 
   /**
